@@ -3,8 +3,8 @@ export type MockModel = {
   name: string;
   prompt: string;
   description: string;
+  modelUrl?: string;
 };
-
 /**
  * Placeholder example-model metadata for the homepage preview and gallery.
  * Replace with real generated models (with modelUrl pointing at NURBS/mesh
@@ -13,9 +13,10 @@ export type MockModel = {
 export const mockModels: MockModel[] = [
   {
     id: "vase-01",
-    name: "Fluted vase",
+    name: "Ship (temporary)",
     prompt: "a tall fluted ceramic vase with a narrow neck",
-    description: "Smooth NURBS surfaces, ideal for showing off curvature fidelity.",
+    description: "not NURBS but right now is mesh .obj file",
+    modelUrl: "/models/demo.obj",
   },
   {
     id: "gear-01",
