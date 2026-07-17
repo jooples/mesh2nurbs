@@ -8,6 +8,9 @@ export default function Navbar() {
           mesh2nurbs
         </Link>
         <div className="flex items-center gap-6 text-sm text-zinc-300">
+          <Link href="/about" className="transition-colors hover:text-white">
+            About
+          </Link>
           <Link href="/gallery" className="transition-colors hover:text-white">
             Gallery
           </Link>
