@@ -1,82 +1,408 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import MeshViewer from "@/components/MeshViewer";
+import { useAuth } from "@/lib/auth";
 
-type GenerateResponse = {
+type TabType = "text" | "image";
+
+type Params = {
+  face_count: number;
+  generate_type: "Normal" | "LowPoly" | "Geometry" | "Sketch";
+  enable_pbr: boolean;
+  polygon_type: "triangle" | "quadrilateral";
+};
+
+const DEFAULT_PARAMS: Params = {
+  face_count: 500000,
+  generate_type: "Normal",
+  enable_pbr: false,
+  polygon_type: "triangle",
+};
+
+type GenerateResult = {
+  prompt?: string;
+  job_id: string;
   status: string;
-  message: string;
+  mesh: { meshUrl: string | null; meshFormat: string; fileSizeBytes: number };
+  preview: { url: string | null };
+  artifacts: Array<{ type: string; download_url: string | null }>;
+  error?: string;
 };
 
 export default function CreatePage() {
+  const router = useRouter();
+  const { isAuthenticated } = useAuth();
+
+  const [activeTab, setActiveTab] = useState<TabType>("text");
   const [prompt, setPrompt] = useState("");
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [params, setParams] = useState<Params>(DEFAULT_PARAMS);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+
   const [isLoading, setIsLoading] = useState(false);
-  const [result, setResult] = useState<GenerateResponse | null>(null);
+  const [progress, setProgress] = useState(0);
+  const [statusMsg, setStatusMsg] = useState("");
+  const [result, setResult] = useState<GenerateResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  async function handleSubmit(event: React.FormEvent) {
-    event.preventDefault();
-    if (!prompt.trim() || isLoading) return;
+  const handleImageDrop = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 16 * 1024 * 1024) {
+      setError("Image must be under 16MB");
+      return;
+    }
+    setImageFile(file);
+    setImagePreview(URL.createObjectURL(file));
+    setError(null);
+  }, []);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (isLoading) return;
+    if (activeTab === "text" && !prompt.trim()) return;
+    if (activeTab === "image" && !imageFile) return;
+    if (!isAuthenticated) {
+      router.push("/login?redirect=/create");
+      return;
+    }
 
     setIsLoading(true);
     setError(null);
     setResult(null);
+    setProgress(0);
+    setStatusMsg("Submitting job...");
 
     try {
-      const res = await fetch("/api/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt }),
-      });
-      if (!res.ok) throw new Error(`Request failed (${res.status})`);
-      const data = (await res.json()) as GenerateResponse;
-      setResult(data);
+      if (activeTab === "text") {
+        const token = localStorage.getItem("access_token");
+        const res = await fetch("/api/generate", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({ prompt, ...params }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
+        setResult(data as GenerateResult);
+        setProgress(100);
+        setStatusMsg("Complete!");
+      } else {
+        // Image-to-3D: submit multipart form directly
+        setStatusMsg("Uploading image...");
+        const formData = new FormData();
+        formData.append("image", imageFile!);
+        if (prompt) formData.append("prompt", prompt);
+        formData.append("face_count", String(params.face_count));
+        formData.append("generate_type", params.generate_type);
+        formData.append("enable_pbr", String(params.enable_pbr));
+        formData.append("polygon_type", params.polygon_type);
+
+        const submitRes = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/v1"}/jobs/image-to-3d`,
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${localStorage.getItem("access_token")}`,
+            },
+            body: formData,
+          }
+        );
+        if (!submitRes.ok) {
+          const errData = await submitRes.json().catch(() => ({}));
+          throw new Error((errData as { detail?: string }).detail || `Submit failed (${submitRes.status})`);
+        }
+        const { id: jobId } = await submitRes.json();
+
+        // Poll
+        setStatusMsg("Generating 3D model...");
+        const deadline = Date.now() + 600_000;
+        while (Date.now() < deadline) {
+          await new Promise((r) => setTimeout(r, 3000));
+          const pollRes = await fetch(
+            `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/v1"}/jobs/${jobId}`,
+            {
+              headers: {
+                Authorization: `Bearer ${localStorage.getItem("access_token")}`,
+              },
+            }
+          );
+          if (!pollRes.ok) continue;
+          const job = await pollRes.json();
+          setProgress(Math.min(95, Math.round((Date.now() - (Date.now() - 600_000)) / 6000)));
+
+          if (job.status === "completed") {
+            const glb = job.artifacts?.find((a: { artifact_type: string }) => a.artifact_type === "glb");
+            const preview = job.artifacts?.find((a: { artifact_type: string }) => a.artifact_type === "preview_image");
+            setResult({
+              job_id: jobId,
+              status: "ready",
+              mesh: {
+                meshUrl: glb?.download_url || null,
+                meshFormat: "glb",
+                fileSizeBytes: glb?.file_size_bytes || 0,
+              },
+              preview: { url: preview?.download_url || glb?.preview_image_url || null },
+              artifacts: job.artifacts || [],
+            });
+            setProgress(100);
+            setStatusMsg("Complete!");
+            break;
+          }
+          if (job.status === "failed") {
+            throw new Error(job.error_message || "Generation failed");
+          }
+          setStatusMsg(job.status === "processing" ? "Generating 3D model..." : `Status: ${job.status}`);
+        }
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
+      setStatusMsg("");
     } finally {
       setIsLoading(false);
     }
-  }
+  };
 
   return (
-    <section className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-10 px-6 py-16">
+    <section className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-8 px-6 py-16">
       <div className="text-center">
         <h1 className="text-3xl font-semibold text-zinc-50 sm:text-4xl">
-          Generate a NURBS model
+          Generate a 3D model
         </h1>
         <p className="mt-3 text-zinc-400">
-          Describe what you want to create and we&apos;ll turn it into a 3D
-          model.
+          Describe what you want to create and we&apos;ll turn it into a 3D model.
         </p>
+        {!isAuthenticated && (
+          <p className="mt-2 text-sm text-amber-400">
+            You&apos;ll need to log in before generating a model.
+          </p>
+        )}
       </div>
 
+      {/* Tab selector */}
+      <div className="flex justify-center gap-2">
+        {(["text", "image"] as TabType[]).map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className={`rounded-full px-5 py-2 text-sm font-medium transition-colors ${
+              activeTab === tab
+                ? "bg-violet-500 text-white"
+                : "bg-zinc-800 text-zinc-400 hover:text-zinc-200"
+            }`}
+          >
+            {tab === "text" ? "Text to 3D" : "Image to 3D"}
+          </button>
+        ))}
+      </div>
+
+      {/* Form */}
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-        <textarea
-          value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
-          placeholder="e.g. a tall fluted ceramic vase with a narrow neck"
-          rows={4}
-          className="w-full resize-none rounded-xl border border-white/15 bg-zinc-900 px-4 py-3 text-zinc-50 placeholder:text-zinc-500 focus:border-violet-400 focus:outline-none"
-        />
+        {activeTab === "text" ? (
+          <textarea
+            value={prompt}
+            onChange={(e) => setPrompt(e.target.value)}
+            placeholder="e.g. A tall fluted ceramic vase with a narrow neck"
+            rows={4}
+            className="w-full resize-none rounded-xl border border-white/15 bg-zinc-900 px-4 py-3 text-zinc-50 placeholder:text-zinc-500 focus:border-violet-400 focus:outline-none"
+          />
+        ) : (
+          <div className="flex flex-col gap-3">
+            <label
+              htmlFor="image-upload"
+              className="flex cursor-pointer flex-col items-center gap-2 rounded-xl border-2 border-dashed border-white/15 bg-zinc-900 p-8 transition-colors hover:border-violet-400/50"
+            >
+              {imagePreview ? (
+                <>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={imagePreview}
+                    alt="Preview"
+                    className="max-h-48 rounded-lg object-contain"
+                  />
+                  <span className="text-sm text-zinc-400">
+                    {imageFile?.name} ({(imageFile ? imageFile.size / 1024 : 0).toFixed(0)} KB)
+                  </span>
+                  <span className="text-xs text-zinc-500">Click to change</span>
+                </>
+              ) : (
+                <>
+                  <span className="text-2xl">📁</span>
+                  <span className="text-sm text-zinc-400">
+                    Drop an image or click to browse
+                  </span>
+                  <span className="text-xs text-zinc-500">JPEG or PNG, max 16MB</span>
+                </>
+              )}
+              <input
+                id="image-upload"
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                onChange={handleImageDrop}
+                className="hidden"
+              />
+            </label>
+            <input
+              type="text"
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              placeholder="Optional: additional text prompt to guide generation"
+              className="w-full rounded-xl border border-white/15 bg-zinc-900 px-4 py-3 text-sm text-zinc-50 placeholder:text-zinc-500 focus:border-violet-400 focus:outline-none"
+            />
+          </div>
+        )}
+
+        {/* Parameter panel */}
+        <button
+          type="button"
+          onClick={() => setShowAdvanced(!showAdvanced)}
+          className="self-start text-sm text-zinc-500 hover:text-zinc-300"
+        >
+          {showAdvanced ? "▾ Hide" : "▸ Advanced"} parameters
+        </button>
+
+        {showAdvanced && (
+          <div className="grid grid-cols-1 gap-4 rounded-xl border border-white/10 bg-zinc-900/50 p-4 sm:grid-cols-2">
+            <label className="flex flex-col gap-1">
+              <span className="text-xs text-zinc-400">
+                Face count: {params.face_count.toLocaleString()}
+              </span>
+              <input
+                type="range"
+                min={3000}
+                max={1500000}
+                step={10000}
+                value={params.face_count}
+                onChange={(e) =>
+                  setParams({ ...params, face_count: Number(e.target.value) })
+                }
+                className="accent-violet-500"
+              />
+            </label>
+
+            <label className="flex flex-col gap-1">
+              <span className="text-xs text-zinc-400">Generate type</span>
+              <select
+                value={params.generate_type}
+                onChange={(e) =>
+                  setParams({
+                    ...params,
+                    generate_type: e.target.value as Params["generate_type"],
+                  })
+                }
+                className="rounded-lg border border-white/15 bg-zinc-900 px-3 py-2 text-sm text-zinc-50 focus:border-violet-400 focus:outline-none"
+              >
+                {["Normal", "LowPoly", "Geometry", "Sketch"].map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="flex items-center gap-2 sm:col-span-2">
+              <input
+                type="checkbox"
+                checked={params.enable_pbr}
+                onChange={(e) =>
+                  setParams({ ...params, enable_pbr: e.target.checked })
+                }
+                className="accent-violet-500"
+              />
+              <span className="text-xs text-zinc-400">Enable PBR materials</span>
+            </label>
+
+            {params.generate_type === "LowPoly" && (
+              <label className="flex flex-col gap-1">
+                <span className="text-xs text-zinc-400">Polygon type</span>
+                <select
+                  value={params.polygon_type}
+                  onChange={(e) =>
+                    setParams({
+                      ...params,
+                      polygon_type: e.target.value as "triangle" | "quadrilateral",
+                    })
+                  }
+                  className="rounded-lg border border-white/15 bg-zinc-900 px-3 py-2 text-sm text-zinc-50 focus:border-violet-400 focus:outline-none"
+                >
+                  <option value="triangle">Triangle</option>
+                  <option value="quadrilateral">Quadrilateral</option>
+                </select>
+              </label>
+            )}
+          </div>
+        )}
+
         <button
           type="submit"
-          disabled={!prompt.trim() || isLoading}
+          disabled={
+            isLoading ||
+            (activeTab === "text" && !prompt.trim()) ||
+            (activeTab === "image" && !imageFile)
+          }
           className="self-center rounded-full bg-violet-500 px-8 py-3 font-semibold text-white transition-colors hover:bg-violet-400 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {isLoading ? "Generating…" : "Generate"}
+          {isLoading ? statusMsg || "Generating…" : "Generate"}
         </button>
       </form>
 
-      {error && <p className="text-center text-sm text-red-400">{error}</p>}
+      {error && (
+        <p className="rounded-lg border border-red-500/30 bg-red-950/30 p-3 text-center text-sm text-red-400">
+          {error}
+        </p>
+      )}
 
+      {/* Progress bar */}
+      {isLoading && (
+        <div className="w-full overflow-hidden rounded-full bg-zinc-800">
+          <div
+            className="h-2 rounded-full bg-violet-500 transition-all duration-500"
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+      )}
+
+      {/* Result viewer */}
       <div className="flex flex-col items-center gap-4">
         <div className="w-full max-w-md">
-          <MeshViewer label="Your generated model will appear here" />
+          <MeshViewer
+            modelUrl={result?.mesh?.meshUrl ?? undefined}
+            previewUrl={result?.preview?.url ?? undefined}
+            label={result ? "Your generated model" : "Your generated model will appear here"}
+          />
         </div>
+
         {result && (
-          <p className="max-w-md text-center text-sm text-zinc-400">
-            {result.message}
-          </p>
+          <div className="flex flex-wrap items-center justify-center gap-3 text-sm">
+            {result.artifacts
+              ?.filter((a) => a.type !== "preview_image")
+              .map((a, idx) =>
+                a.download_url ? (
+                  <a
+                    key={`${a.type}-${idx}`}
+                    href={a.download_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="rounded-full border border-white/15 px-4 py-2 text-xs text-zinc-300 transition-colors hover:bg-white/10"
+                  >
+                    ⬇ Download {a.type.toUpperCase()}
+                  </a>
+                ) : null
+              )}
+            {result.job_id && (
+              <button
+                onClick={() => router.push(`/jobs/${result.job_id}`)}
+                className="rounded-full border border-white/15 px-4 py-2 text-xs text-zinc-300 transition-colors hover:bg-white/10"
+              >
+                View details →
+              </button>
+            )}
+          </div>
         )}
       </div>
     </section>
