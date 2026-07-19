@@ -92,7 +92,7 @@ export default function JobDetailPage() {
           <h1 className="text-2xl font-semibold text-zinc-50">
             {typeof job.generation_params?.prompt === "string"
               ? (job.generation_params.prompt as string).slice(0, 80)
-              : job.title || `${job.job_type} job`}
+              : `${job.job_type} job`}
           </h1>
           <span
             className={`rounded-full px-3 py-1 text-xs font-medium ${

@@ -1,13 +1,18 @@
 /**
  * POST /api/generate
- * BFF route: submit → poll → return model URLs to frontend.
+ * Thin BFF proxy — submit text-to-3D job and return immediately with job ID.
+ * Status polling happens on the job detail page (/jobs/[id]).
  */
 
 import { type NextRequest, NextResponse } from "next/server";
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/v1";
-const POLL_TIMEOUT = 600;
-const POLL_INTERVAL = 3;
+// Server-side: use docker internal URL when NEXT_PUBLIC_API_URL is a relative path
+const BACKEND_URL =
+  process.env.BACKEND_INTERNAL_URL ||
+  (process.env.NEXT_PUBLIC_API_URL?.startsWith("/")
+    ? "http://web:8000/v1"
+    : process.env.NEXT_PUBLIC_API_URL) ||
+  "http://localhost:8000/v1";
 
 export async function POST(request: NextRequest) {
   try {
@@ -25,11 +30,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "prompt is required" }, { status: 400 });
     }
 
-    // Forward the user's JWT from the incoming request
+    // Forward JWT from incoming request
     const authHeader = request.headers.get("authorization") || "";
 
-    // Submit to FastAPI
-    const submitRes = await fetch(`${BACKEND_URL}/jobs/text-to-3d`, {
+    // Submit to backend — return immediately (no polling)
+    const res = await fetch(`${BACKEND_URL}/jobs/text-to-3d`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -46,49 +51,17 @@ export async function POST(request: NextRequest) {
         },
       }),
     });
-    if (!submitRes.ok) {
-      const err = await submitRes.json().catch(() => ({}));
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
       return NextResponse.json(
-        { error: (err as Record<string, unknown>).detail || `Submit failed` },
-        { status: submitRes.status }
+        { error: (err as Record<string, unknown>).detail || "Submit failed" },
+        { status: res.status }
       );
     }
 
-    const { id: jobId } = await submitRes.json();
-
-    // Poll until done
-    const deadline = Date.now() + POLL_TIMEOUT * 1000;
-    while (Date.now() < deadline) {
-      await new Promise((r) => setTimeout(r, POLL_INTERVAL * 1000));
-      const pollRes = await fetch(`${BACKEND_URL}/jobs/${jobId}`, {
-        headers: authHeader ? { Authorization: authHeader } : {},
-      });
-      if (!pollRes.ok) continue;
-      const job = await pollRes.json();
-
-      if (job.status === "completed") {
-        const artifacts: Array<Record<string, unknown>> = job.artifacts || [];
-        const glb = artifacts.find((a) => a.artifact_type === "glb");
-        const preview = artifacts.find((a) => a.artifact_type === "preview_image");
-
-        return NextResponse.json({
-          prompt, job_id: jobId, status: "ready",
-          mesh: { meshUrl: glb?.download_url || null, meshFormat: "glb", fileSizeBytes: glb?.file_size_bytes || 0 },
-          preview: { url: preview?.download_url || glb?.preview_image_url || null },
-          artifacts: artifacts.map((a) => ({
-            type: a.artifact_type, label: a.label, download_url: a.download_url,
-            file_size_bytes: a.file_size_bytes,
-          })),
-        });
-      }
-      if (job.status === "failed") {
-        return NextResponse.json(
-          { error: job.error_message || "Generation failed", status: "error" },
-          { status: 422 }
-        );
-      }
-    }
-    return NextResponse.json({ error: "Timed out", status: "error" }, { status: 504 });
+    const { id: jobId, status } = await res.json();
+    return NextResponse.json({ job_id: jobId, status });
   } catch (err) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "Internal error" },

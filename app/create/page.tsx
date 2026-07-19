@@ -2,8 +2,9 @@
 
 import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import MeshViewer from "@/components/MeshViewer";
 import { useAuth } from "@/lib/auth";
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/v1";
 
 type TabType = "text" | "image";
 
@@ -21,16 +22,6 @@ const DEFAULT_PARAMS: Params = {
   polygon_type: "triangle",
 };
 
-type GenerateResult = {
-  prompt?: string;
-  job_id: string;
-  status: string;
-  mesh: { meshUrl: string | null; meshFormat: string; fileSizeBytes: number };
-  preview: { url: string | null };
-  artifacts: Array<{ type: string; download_url: string | null }>;
-  error?: string;
-};
-
 export default function CreatePage() {
   const router = useRouter();
   const { isAuthenticated } = useAuth();
@@ -43,9 +34,6 @@ export default function CreatePage() {
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   const [isLoading, setIsLoading] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [statusMsg, setStatusMsg] = useState("");
-  const [result, setResult] = useState<GenerateResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const handleImageDrop = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -60,6 +48,8 @@ export default function CreatePage() {
     setError(null);
   }, []);
 
+  const getToken = () => localStorage.getItem("access_token");
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isLoading) return;
@@ -72,97 +62,55 @@ export default function CreatePage() {
 
     setIsLoading(true);
     setError(null);
-    setResult(null);
-    setProgress(0);
-    setStatusMsg("Submitting job...");
 
     try {
+      const token = getToken();
+      const headers: Record<string, string> = {
+        Authorization: `Bearer ${token}`,
+      };
+
+      let res: Response;
+
       if (activeTab === "text") {
-        const token = localStorage.getItem("access_token");
-        const res = await fetch("/api/generate", {
+        res = await fetch(`${API_BASE}/jobs/text-to-3d`, {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-          body: JSON.stringify({ prompt, ...params }),
+          headers: { ...headers, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            params: {
+              prompt: prompt.trim(),
+              ...(params.enable_pbr !== undefined && { enable_pbr: params.enable_pbr }),
+              ...(params.face_count && { face_count: params.face_count }),
+              ...(params.generate_type && { generate_type: params.generate_type }),
+              ...(params.polygon_type && { polygon_type: params.polygon_type }),
+            },
+          }),
         });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
-        setResult(data as GenerateResult);
-        setProgress(100);
-        setStatusMsg("Complete!");
       } else {
-        // Image-to-3D: submit multipart form directly
-        setStatusMsg("Uploading image...");
         const formData = new FormData();
         formData.append("image", imageFile!);
-        if (prompt) formData.append("prompt", prompt);
+        if (prompt.trim()) formData.append("prompt", prompt.trim());
+        formData.append("enable_pbr", String(params.enable_pbr));
         formData.append("face_count", String(params.face_count));
         formData.append("generate_type", params.generate_type);
-        formData.append("enable_pbr", String(params.enable_pbr));
         formData.append("polygon_type", params.polygon_type);
 
-        const submitRes = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/v1"}/jobs/image-to-3d`,
-          {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${localStorage.getItem("access_token")}`,
-            },
-            body: formData,
-          }
-        );
-        if (!submitRes.ok) {
-          const errData = await submitRes.json().catch(() => ({}));
-          throw new Error((errData as { detail?: string }).detail || `Submit failed (${submitRes.status})`);
-        }
-        const { id: jobId } = await submitRes.json();
-
-        // Poll
-        setStatusMsg("Generating 3D model...");
-        const deadline = Date.now() + 600_000;
-        while (Date.now() < deadline) {
-          await new Promise((r) => setTimeout(r, 3000));
-          const pollRes = await fetch(
-            `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/v1"}/jobs/${jobId}`,
-            {
-              headers: {
-                Authorization: `Bearer ${localStorage.getItem("access_token")}`,
-              },
-            }
-          );
-          if (!pollRes.ok) continue;
-          const job = await pollRes.json();
-          setProgress(Math.min(95, Math.round((Date.now() - (Date.now() - 600_000)) / 6000)));
-
-          if (job.status === "completed") {
-            const glb = job.artifacts?.find((a: { artifact_type: string }) => a.artifact_type === "glb");
-            const preview = job.artifacts?.find((a: { artifact_type: string }) => a.artifact_type === "preview_image");
-            setResult({
-              job_id: jobId,
-              status: "ready",
-              mesh: {
-                meshUrl: glb?.download_url || null,
-                meshFormat: "glb",
-                fileSizeBytes: glb?.file_size_bytes || 0,
-              },
-              preview: { url: preview?.download_url || glb?.preview_image_url || null },
-              artifacts: job.artifacts || [],
-            });
-            setProgress(100);
-            setStatusMsg("Complete!");
-            break;
-          }
-          if (job.status === "failed") {
-            throw new Error(job.error_message || "Generation failed");
-          }
-          setStatusMsg(job.status === "processing" ? "Generating 3D model..." : `Status: ${job.status}`);
-        }
+        res = await fetch(`${API_BASE}/jobs/image-to-3d`, {
+          method: "POST",
+          headers: { Authorization: headers.Authorization },
+          body: formData,
+        });
       }
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error((errData as { detail?: string }).detail || `Submit failed (${res.status})`);
+      }
+
+      const { id: jobId } = await res.json();
+      // Redirect to job detail page — status is polled there in real time
+      router.push(`/jobs/${jobId}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
-      setStatusMsg("");
     } finally {
       setIsLoading(false);
     }
@@ -347,7 +295,7 @@ export default function CreatePage() {
           }
           className="self-center rounded-full bg-violet-500 px-8 py-3 font-semibold text-white transition-colors hover:bg-violet-400 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {isLoading ? statusMsg || "Generating…" : "Generate"}
+          {isLoading ? "Submitting…" : "Generate"}
         </button>
       </form>
 
@@ -356,55 +304,6 @@ export default function CreatePage() {
           {error}
         </p>
       )}
-
-      {/* Progress bar */}
-      {isLoading && (
-        <div className="w-full overflow-hidden rounded-full bg-zinc-800">
-          <div
-            className="h-2 rounded-full bg-violet-500 transition-all duration-500"
-            style={{ width: `${progress}%` }}
-          />
-        </div>
-      )}
-
-      {/* Result viewer */}
-      <div className="flex flex-col items-center gap-4">
-        <div className="w-full max-w-md">
-          <MeshViewer
-            modelUrl={result?.mesh?.meshUrl ?? undefined}
-            previewUrl={result?.preview?.url ?? undefined}
-            label={result ? "Your generated model" : "Your generated model will appear here"}
-          />
-        </div>
-
-        {result && (
-          <div className="flex flex-wrap items-center justify-center gap-3 text-sm">
-            {result.artifacts
-              ?.filter((a) => a.type !== "preview_image")
-              .map((a, idx) =>
-                a.download_url ? (
-                  <a
-                    key={`${a.type}-${idx}`}
-                    href={a.download_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="rounded-full border border-white/15 px-4 py-2 text-xs text-zinc-300 transition-colors hover:bg-white/10"
-                  >
-                    ⬇ Download {a.type.toUpperCase()}
-                  </a>
-                ) : null
-              )}
-            {result.job_id && (
-              <button
-                onClick={() => router.push(`/jobs/${result.job_id}`)}
-                className="rounded-full border border-white/15 px-4 py-2 text-xs text-zinc-300 transition-colors hover:bg-white/10"
-              >
-                View details →
-              </button>
-            )}
-          </div>
-        )}
-      </div>
     </section>
   );
 }
