@@ -279,4 +279,98 @@ export const creditsApi = {
   },
 };
 
+// ── Admin API ──
+
+export type AdminUserItem = {
+  id: string;
+  email: string;
+  display_name: string | null;
+  is_admin: boolean;
+  is_active: boolean;
+  credits_balance: number;
+  lifetime_used: number;
+  total_jobs: number;
+  completed_jobs: number;
+  created_at: string | null;
+};
+
+export type AdminUserDetail = AdminUserItem & {
+  email_verified: boolean;
+  last_login_at: string | null;
+};
+
+export type AdminStats = {
+  total_users: number;
+  active_users: number;
+  admin_users: number;
+  total_jobs: number;
+  completed_jobs: number;
+  failed_jobs: number;
+  total_credits_granted: number;
+  total_credits_consumed: number;
+};
+
+export type CreditTransactionItem = {
+  id: string;
+  amount: number;
+  transaction_type: string;
+  description: string | null;
+  created_at: string | null;
+};
+
+export const adminApi = {
+  async getStats(): Promise<AdminStats> {
+    return apiFetch<AdminStats>("/admin/stats");
+  },
+
+  async listUsers(params?: {
+    search?: string;
+    page?: number;
+    per_page?: number;
+  }): Promise<PaginatedResponse<AdminUserItem>> {
+    const sp = new URLSearchParams();
+    if (params?.search) sp.set("search", params.search);
+    if (params?.page) sp.set("page", String(params.page));
+    if (params?.per_page) sp.set("per_page", String(params.per_page));
+    const qs = sp.toString();
+    return apiFetch<PaginatedResponse<AdminUserItem>>(
+      `/admin/users${qs ? `?${qs}` : ""}`
+    );
+  },
+
+  async getUser(userId: string): Promise<AdminUserDetail> {
+    return apiFetch<AdminUserDetail>(`/admin/users/${userId}`);
+  },
+
+  async adjustCredits(
+    userId: string,
+    amount: number,
+    reason: string
+  ): Promise<{
+    message: string;
+    user_id: string;
+    previous_balance: number;
+    new_balance: number;
+    adjustment: number;
+  }> {
+    return apiFetch(`/admin/users/${userId}/credits`, {
+      method: "POST",
+      body: JSON.stringify({ amount, reason }),
+    });
+  },
+
+  async getUserTransactions(
+    userId: string,
+    params?: { page?: number; per_page?: number }
+  ): Promise<PaginatedResponse<CreditTransactionItem>> {
+    const sp = new URLSearchParams();
+    if (params?.page) sp.set("page", String(params.page));
+    if (params?.per_page) sp.set("per_page", String(params.per_page));
+    const qs = sp.toString();
+    return apiFetch<PaginatedResponse<CreditTransactionItem>>(
+      `/admin/users/${userId}/transactions${qs ? `?${qs}` : ""}`
+    );
+  },
+};
+
 export { apiFetch, ApiError, getAccessToken, setTokens, clearTokens, API_BASE };

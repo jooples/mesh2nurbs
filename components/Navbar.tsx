@@ -57,6 +57,14 @@ export default function Navbar() {
                   >
                     New Model
                   </Link>
+                  {user?.is_admin && (
+                    <Link
+                      href="/admin"
+                      className="block px-4 py-2 text-xs text-violet-400 hover:bg-white/5"
+                    >
+                      Admin Panel
+                    </Link>
+                  )}
                   <button
                     onClick={logout}
                     className="block w-full px-4 py-2 text-left text-xs text-red-400 hover:bg-white/5"
