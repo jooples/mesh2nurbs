@@ -29,6 +29,9 @@ export default function Navbar() {
           <Link href="/gallery" className="transition-colors hover:text-white">
             Gallery
           </Link>
+          <Link href="/nurbs" className="transition-colors hover:text-white">
+            NURBS Viewer
+          </Link>
 
           {isLoading ? (
             <span className="h-8 w-20 animate-pulse rounded-full bg-zinc-800" />
