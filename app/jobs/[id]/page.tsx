@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import MeshViewer from "@/components/MeshViewer";
+import NurbsUploadViewer from "@/components/NurbsUploadViewer";
 import { jobsApi, type JobDetail, type Artifact } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 
@@ -68,6 +69,10 @@ export default function JobDetailPage() {
   const glb = job.artifacts?.find((a: Artifact) => a.artifact_type === "glb");
   const preview = job.artifacts?.find((a: Artifact) => a.artifact_type === "preview_image");
   const obj = job.artifacts?.find((a: Artifact) => a.artifact_type === "obj");
+  // Not produced by the backend yet — the mesh2nurbs pipeline currently emits raw
+  // .m patch files (artifact_type "nurbs_patches"), not this pre-tessellated JSON.
+  // Wired up so it auto-loads as soon as that conversion exists.
+  const nurbsJson = job.artifacts?.find((a: Artifact) => a.artifact_type === "nurbs_json");
 
   const statusColor: Record<string, string> = {
     completed: "text-emerald-400",
@@ -175,6 +180,18 @@ export default function JobDetailPage() {
               {job.error_message}
             </div>
           )}
+        </div>
+      </div>
+
+      {/* NURBS Viewer */}
+      <div className="mb-10">
+        <h2 className="mb-4 text-lg font-medium text-zinc-50">NURBS Surface</h2>
+        <div className="mx-auto w-full max-w-md">
+          <NurbsUploadViewer
+            initialUrl={nurbsJson?.download_url ?? undefined}
+            initialLabel="Generated NURBS"
+            emptyHint="No NURBS output for this job yet. Upload or drop a NURBS JSON file to preview it here."
+          />
         </div>
       </div>
 
