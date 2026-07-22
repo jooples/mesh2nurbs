@@ -123,6 +123,7 @@ export default function JobDetailPage() {
       {/* 3D Viewer */}
       <div className="mb-10 grid grid-cols-1 gap-8 lg:grid-cols-2">
         <div className="w-full">
+          <h2 className="mb-4 text-lg font-medium text-zinc-50">Generated Model</h2>
           <MeshViewer
             modelUrl={glb?.download_url ?? undefined}
             previewUrl={preview?.download_url ?? undefined}
@@ -130,69 +131,66 @@ export default function JobDetailPage() {
           />
         </div>
 
-        {/* Params */}
-        <div className="flex flex-col gap-4">
-          <h2 className="text-lg font-medium text-zinc-50">Generation Parameters</h2>
-          <dl className="grid grid-cols-2 gap-3 text-sm">
-            {job.job_type && (
-              <>
-                <dt className="text-zinc-500">Type</dt>
-                <dd className="text-zinc-300">{job.job_type}</dd>
-              </>
-            )}
-            {typeof job.generation_params?.prompt === "string" && (
-              <>
-                <dt className="text-zinc-500">Prompt</dt>
-                <dd className="text-zinc-300">
-                  {job.generation_params.prompt as string}
-                </dd>
-              </>
-            )}
-            {typeof job.generation_params?.face_count === "number" && (
-              <>
-                <dt className="text-zinc-500">Face count</dt>
-                <dd className="text-zinc-300">
-                  {(job.generation_params.face_count as number).toLocaleString()}
-                </dd>
-              </>
-            )}
-            {typeof job.generation_params?.generate_type === "string" && (
-              <>
-                <dt className="text-zinc-500">Generate type</dt>
-                <dd className="text-zinc-300">
-                  {job.generation_params.generate_type as string}
-                </dd>
-              </>
-            )}
-            {typeof job.generation_params?.enable_pbr === "boolean" && (
-              <>
-                <dt className="text-zinc-500">PBR</dt>
-                <dd className="text-zinc-300">
-                  {job.generation_params.enable_pbr ? "Enabled" : "Disabled"}
-                </dd>
-              </>
-            )}
-          </dl>
-
-          {/* Error */}
-          {job.error_message && (
-            <div className="rounded-lg border border-red-500/30 bg-red-950/30 p-4 text-sm text-red-400">
-              {job.error_message}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* NURBS Viewer */}
-      <div className="mb-10">
-        <h2 className="mb-4 text-lg font-medium text-zinc-50">NURBS Surface</h2>
-        <div className="mx-auto w-full max-w-md">
+        <div className="w-full">
+          <h2 className="mb-4 text-lg font-medium text-zinc-50">NURBS Surface</h2>
           <NurbsUploadViewer
             initialUrl={nurbsJson?.download_url ?? undefined}
             initialLabel="Generated NURBS"
             emptyHint="No NURBS output for this job yet. Upload or drop a NURBS JSON file to preview it here."
           />
         </div>
+      </div>
+
+      {/* Params */}
+      <div className="mb-10 flex flex-col gap-4">
+        <h2 className="text-lg font-medium text-zinc-50">Generation Parameters</h2>
+        <dl className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+          {job.job_type && (
+            <>
+              <dt className="text-zinc-500">Type</dt>
+              <dd className="text-zinc-300">{job.job_type}</dd>
+            </>
+          )}
+          {typeof job.generation_params?.prompt === "string" && (
+            <>
+              <dt className="text-zinc-500">Prompt</dt>
+              <dd className="text-zinc-300">
+                {job.generation_params.prompt as string}
+              </dd>
+            </>
+          )}
+          {typeof job.generation_params?.face_count === "number" && (
+            <>
+              <dt className="text-zinc-500">Face count</dt>
+              <dd className="text-zinc-300">
+                {(job.generation_params.face_count as number).toLocaleString()}
+              </dd>
+            </>
+          )}
+          {typeof job.generation_params?.generate_type === "string" && (
+            <>
+              <dt className="text-zinc-500">Generate type</dt>
+              <dd className="text-zinc-300">
+                {job.generation_params.generate_type as string}
+              </dd>
+            </>
+          )}
+          {typeof job.generation_params?.enable_pbr === "boolean" && (
+            <>
+              <dt className="text-zinc-500">PBR</dt>
+              <dd className="text-zinc-300">
+                {job.generation_params.enable_pbr ? "Enabled" : "Disabled"}
+              </dd>
+            </>
+          )}
+        </dl>
+
+        {/* Error */}
+        {job.error_message && (
+          <div className="rounded-lg border border-red-500/30 bg-red-950/30 p-4 text-sm text-red-400">
+            {job.error_message}
+          </div>
+        )}
       </div>
 
       {/* Pipeline stages */}
