@@ -1,11 +1,11 @@
 "use client";
 
-import { Suspense, useMemo, useState } from "react";
-import { Canvas, useLoader } from "@react-three/fiber";
+import { useMemo, useState } from "react";
+import { Canvas } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
 
-type NurbsPatch = {
+export type NurbsPatch = {
   patchId: number;
   cpU: number;
   cpV: number;
@@ -17,12 +17,12 @@ type NurbsPatch = {
   controlPoints: number[];
 };
 
-type NurbsData = {
+export type NurbsData = {
   patches: NurbsPatch[];
 };
 
 type NurbsViewerProps = {
-  url: string;
+  data: NurbsData;
   label?: string;
   className?: string;
 };
@@ -152,25 +152,7 @@ function NurbsPatches({
   );
 }
 
-function NurbsModel({
-  url,
-  showControlPoints,
-  showControlNet,
-}: {
-  url: string;
-  showControlPoints: boolean;
-  showControlNet: boolean;
-}) {
-  const data = useLoader(THREE.FileLoader, url, (loader) => {
-    loader.setResponseType("json");
-  }) as unknown as NurbsData;
-
-  return (
-    <NurbsPatches data={data} showControlPoints={showControlPoints} showControlNet={showControlNet} />
-  );
-}
-
-export default function NurbsViewer({ url, label, className }: NurbsViewerProps) {
+export default function NurbsViewer({ data, label, className }: NurbsViewerProps) {
   const [showControlPoints, setShowControlPoints] = useState(true);
   const [showControlNet, setShowControlNet] = useState(true);
 
@@ -181,9 +163,7 @@ export default function NurbsViewer({ url, label, className }: NurbsViewerProps)
       <Canvas camera={{ position: [2.5, 2, 2.5], fov: 45 }}>
         <ambientLight intensity={0.6} />
         <directionalLight position={[3, 3, 3]} intensity={1} />
-        <Suspense fallback={null}>
-          <NurbsModel url={url} showControlPoints={showControlPoints} showControlNet={showControlNet} />
-        </Suspense>
+        <NurbsPatches data={data} showControlPoints={showControlPoints} showControlNet={showControlNet} />
         <OrbitControls enablePan={false} />
       </Canvas>
       <div className="pointer-events-auto absolute right-3 top-3 flex gap-2 text-xs">
