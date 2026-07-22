@@ -18,7 +18,8 @@ export default function AboutPage() {
         </p>
       </div>
 
-      <h2 className="mb-8 text-center text-xl font-semibold text-zinc-50">
+      <h2 className="mb-8 flex items-center justify-center gap-2.5 text-center text-xl font-semibold text-zinc-50">
+        <span className="h-1.5 w-1.5 rounded-full bg-cyan-400" />
         Our team
       </h2>
       <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-4">

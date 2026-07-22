@@ -34,7 +34,9 @@ function LoginForm() {
   return (
     <section className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-6 py-16">
       <div className="text-center">
-        <h1 className="text-2xl font-semibold text-zinc-50">Welcome back</h1>
+        <h1 className="bg-gradient-to-br from-white to-violet-200 bg-clip-text text-2xl font-semibold text-transparent">
+          Welcome back
+        </h1>
         <p className="mt-2 text-sm text-zinc-400">Sign in to your account</p>
       </div>
 
@@ -47,7 +49,7 @@ function LoginForm() {
             onChange={(e) => setEmail(e.target.value)}
             required
             placeholder="you@example.com"
-            className="rounded-xl border border-white/15 bg-zinc-900 px-4 py-3 text-zinc-50 placeholder:text-zinc-500 focus:border-violet-400 focus:outline-none"
+            className="rounded-xl border border-white/15 bg-zinc-900 px-4 py-3 text-zinc-50 placeholder:text-zinc-500 focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-500/20"
           />
         </label>
 
@@ -60,7 +62,7 @@ function LoginForm() {
             required
             minLength={8}
             placeholder="••••••••"
-            className="rounded-xl border border-white/15 bg-zinc-900 px-4 py-3 text-zinc-50 placeholder:text-zinc-500 focus:border-violet-400 focus:outline-none"
+            className="rounded-xl border border-white/15 bg-zinc-900 px-4 py-3 text-zinc-50 placeholder:text-zinc-500 focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-500/20"
           />
         </label>
 
@@ -73,7 +75,7 @@ function LoginForm() {
         <button
           type="submit"
           disabled={isLoading}
-          className="mt-2 rounded-full bg-violet-500 px-8 py-3 font-semibold text-white transition-colors hover:bg-violet-400 disabled:cursor-not-allowed disabled:opacity-50"
+          className="mt-2 rounded-full bg-gradient-to-r from-violet-500 to-fuchsia-500 px-8 py-3 font-semibold text-white shadow-lg shadow-violet-500/25 transition-all hover:shadow-violet-500/40 disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
         >
           {isLoading ? "Signing in…" : "Sign in"}
         </button>

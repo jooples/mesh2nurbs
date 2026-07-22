@@ -1,12 +1,20 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import { creditsApi } from "@/lib/api";
 import { useEffect, useState } from "react";
 
+const navLinks = [
+  { href: "/about", label: "About" },
+  { href: "/gallery", label: "Gallery" },
+  { href: "/nurbs", label: "NURBS Viewer" },
+];
+
 export default function Navbar() {
   const { user, isAuthenticated, isLoading, logout } = useAuth();
+  const pathname = usePathname();
   const [credits, setCredits] = useState<number | null>(null);
 
   useEffect(() => {
@@ -28,15 +36,24 @@ export default function Navbar() {
         </Link>
 
         <div className="flex items-center gap-4 text-sm text-zinc-400">
-          <Link href="/about" className="transition-colors hover:text-white">
-            About
-          </Link>
-          <Link href="/gallery" className="transition-colors hover:text-white">
-            Gallery
-          </Link>
-          <Link href="/nurbs" className="transition-colors hover:text-white">
-            NURBS Viewer
-          </Link>
+          {navLinks.map(({ href, label }) => {
+            const isActive = pathname === href;
+            return (
+              <Link
+                key={href}
+                href={href}
+                aria-current={isActive ? "page" : undefined}
+                className={`relative transition-colors ${
+                  isActive ? "text-violet-300" : "hover:text-white"
+                }`}
+              >
+                {label}
+                {isActive && (
+                  <span className="absolute -bottom-1.5 left-0 h-px w-full bg-violet-400/70" />
+                )}
+              </Link>
+            );
+          })}
 
           {isLoading ? (
             <span className="h-8 w-20 animate-pulse rounded-full bg-zinc-800" />

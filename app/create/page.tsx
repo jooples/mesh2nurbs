@@ -119,7 +119,7 @@ export default function CreatePage() {
   return (
     <section className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-8 px-6 py-16">
       <div className="text-center">
-        <h1 className="text-3xl font-semibold text-zinc-50 sm:text-4xl">
+        <h1 className="bg-gradient-to-br from-white to-violet-200 bg-clip-text text-3xl font-semibold text-transparent sm:text-4xl">
           Generate a 3D model
         </h1>
         <p className="mt-3 text-zinc-400">
@@ -140,7 +140,7 @@ export default function CreatePage() {
             onClick={() => setActiveTab(tab)}
             className={`rounded-full px-5 py-2 text-sm font-medium transition-colors ${
               activeTab === tab
-                ? "bg-violet-500 text-white"
+                ? "bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white shadow-md shadow-violet-500/20"
                 : "bg-zinc-800 text-zinc-400 hover:text-zinc-200"
             }`}
           >
@@ -157,7 +157,7 @@ export default function CreatePage() {
             onChange={(e) => setPrompt(e.target.value)}
             placeholder="e.g. A tall fluted ceramic vase with a narrow neck"
             rows={4}
-            className="w-full resize-none rounded-xl border border-white/15 bg-zinc-900 px-4 py-3 text-zinc-50 placeholder:text-zinc-500 focus:border-violet-400 focus:outline-none"
+            className="w-full resize-none rounded-xl border border-white/15 bg-zinc-900 px-4 py-3 text-zinc-50 placeholder:text-zinc-500 focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-500/20"
           />
         ) : (
           <div className="flex flex-col gap-3">
@@ -200,7 +200,7 @@ export default function CreatePage() {
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
               placeholder="Optional: additional text prompt to guide generation"
-              className="w-full rounded-xl border border-white/15 bg-zinc-900 px-4 py-3 text-sm text-zinc-50 placeholder:text-zinc-500 focus:border-violet-400 focus:outline-none"
+              className="w-full rounded-xl border border-white/15 bg-zinc-900 px-4 py-3 text-sm text-zinc-50 placeholder:text-zinc-500 focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-500/20"
             />
           </div>
         )}
@@ -243,7 +243,7 @@ export default function CreatePage() {
                     generate_type: e.target.value as Params["generate_type"],
                   })
                 }
-                className="rounded-lg border border-white/15 bg-zinc-900 px-3 py-2 text-sm text-zinc-50 focus:border-violet-400 focus:outline-none"
+                className="rounded-lg border border-white/15 bg-zinc-900 px-3 py-2 text-sm text-zinc-50 focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-500/20"
               >
                 {["Normal", "LowPoly", "Geometry", "Sketch"].map((t) => (
                   <option key={t} value={t}>
@@ -276,7 +276,7 @@ export default function CreatePage() {
                       polygon_type: e.target.value as "triangle" | "quadrilateral",
                     })
                   }
-                  className="rounded-lg border border-white/15 bg-zinc-900 px-3 py-2 text-sm text-zinc-50 focus:border-violet-400 focus:outline-none"
+                  className="rounded-lg border border-white/15 bg-zinc-900 px-3 py-2 text-sm text-zinc-50 focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-500/20"
                 >
                   <option value="triangle">Triangle</option>
                   <option value="quadrilateral">Quadrilateral</option>
@@ -293,7 +293,7 @@ export default function CreatePage() {
             (activeTab === "text" && !prompt.trim()) ||
             (activeTab === "image" && !imageFile)
           }
-          className="self-center rounded-full bg-violet-500 px-8 py-3 font-semibold text-white transition-colors hover:bg-violet-400 disabled:cursor-not-allowed disabled:opacity-50"
+          className="self-center rounded-full bg-gradient-to-r from-violet-500 to-fuchsia-500 px-8 py-3 font-semibold text-white shadow-lg shadow-violet-500/25 transition-all hover:shadow-violet-500/40 disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
         >
           {isLoading ? "Submitting…" : "Generate"}
         </button>
