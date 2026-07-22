@@ -139,10 +139,34 @@ export default function NurbsUploadViewer({
   const canReset = !!initialUrl && source !== initialLabel;
 
   return (
-    <div className={`flex w-full flex-col gap-4 ${className ?? ""}`}>
-      <div className="flex flex-wrap items-center justify-center gap-3">
-        <label className="cursor-pointer rounded-full bg-white px-4 py-2 text-sm font-medium text-black transition-colors hover:bg-zinc-200">
-          Upload NURBS JSON
+    <div
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+      className={`relative w-full rounded-2xl transition-shadow ${
+        isDragging ? "ring-2 ring-violet-400" : ""
+      } ${className ?? ""}`}
+    >
+      {isLoading ? (
+        <div className="flex aspect-square w-full items-center justify-center rounded-2xl border border-white/10 bg-zinc-900">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
+        </div>
+      ) : error ? (
+        <div className="flex aspect-square w-full items-center justify-center rounded-2xl border border-red-500/30 bg-red-950/20 p-6 text-center text-sm text-red-400">
+          {error}
+        </div>
+      ) : data ? (
+        <NurbsViewer data={data} label={source} />
+      ) : (
+        <div className="flex aspect-square w-full items-center justify-center rounded-2xl border border-dashed border-white/10 bg-zinc-900 p-6 text-center text-sm text-zinc-500">
+          {emptyHint}
+        </div>
+      )}
+
+      <div className="pointer-events-auto absolute left-3 top-3 flex gap-2 text-xs">
+        <label className="cursor-pointer rounded-full border border-white/10 bg-black/40 px-3 py-1 text-zinc-300 backdrop-blur transition-colors hover:text-white">
+          Upload
           <input
             ref={fileInputRef}
             type="file"
@@ -155,52 +179,20 @@ export default function NurbsUploadViewer({
           <button
             type="button"
             onClick={loadInitial}
-            className="rounded-full border border-white/10 px-4 py-2 text-sm text-zinc-300 transition-colors hover:text-white"
+            className="rounded-full border border-white/10 bg-black/40 px-3 py-1 text-zinc-300 backdrop-blur transition-colors hover:text-white"
           >
             Reset
           </button>
         )}
       </div>
 
-      {error && (
-        <p className="rounded-lg border border-red-500/30 bg-red-950/30 p-3 text-center text-sm text-red-400">
-          {error}
-        </p>
+      {isDragging && (
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-2xl border-2 border-dashed border-violet-400 bg-black/70">
+          <p className="text-sm font-medium text-violet-200">
+            Drop NURBS JSON to load
+          </p>
+        </div>
       )}
-
-      <div
-        onDragEnter={handleDragEnter}
-        onDragLeave={handleDragLeave}
-        onDragOver={handleDragOver}
-        onDrop={handleDrop}
-        className={`relative rounded-2xl transition-colors ${
-          isDragging ? "ring-2 ring-violet-400" : ""
-        }`}
-      >
-        {isLoading ? (
-          <div className="flex aspect-square w-full items-center justify-center rounded-2xl border border-white/10 bg-zinc-900">
-            <div className="h-8 w-8 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
-          </div>
-        ) : data ? (
-          <NurbsViewer data={data} label={source} />
-        ) : (
-          <div className="flex aspect-square w-full items-center justify-center rounded-2xl border border-dashed border-white/10 bg-zinc-900 p-6 text-center text-sm text-zinc-500">
-            {emptyHint}
-          </div>
-        )}
-
-        {isDragging && (
-          <div className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-2xl border-2 border-dashed border-violet-400 bg-black/70">
-            <p className="text-sm font-medium text-violet-200">
-              Drop NURBS JSON to load
-            </p>
-          </div>
-        )}
-      </div>
-
-      <p className="text-center text-xs text-zinc-500">
-        or drag and drop a .json file onto the viewer above
-      </p>
     </div>
   );
 }

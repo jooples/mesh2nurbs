@@ -1,11 +1,20 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, type ReactNode } from "react";
 import { useParams, useRouter } from "next/navigation";
 import MeshViewer from "@/components/MeshViewer";
 import NurbsUploadViewer from "@/components/NurbsUploadViewer";
 import { jobsApi, type JobDetail, type Artifact } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+
+function SectionHeading({ children }: { children: ReactNode }) {
+  return (
+    <h2 className="mb-4 flex items-center gap-2 text-lg font-medium text-zinc-50">
+      <span className="h-4 w-1 rounded-full bg-violet-500" />
+      {children}
+    </h2>
+  );
+}
 
 export default function JobDetailPage() {
   const params = useParams();
@@ -83,27 +92,49 @@ export default function JobDetailPage() {
     downloading: "text-cyan-400",
   };
 
+  const statusDot: Record<string, string> = {
+    completed: "bg-emerald-400",
+    failed: "bg-red-400",
+    pending: "bg-amber-400",
+    submitted: "bg-blue-400",
+    processing: "bg-violet-400",
+    downloading: "bg-cyan-400",
+  };
+
+  const activeStatuses = ["pending", "submitted", "processing", "downloading"];
+  const isActive = activeStatuses.includes(job.status);
+  const stages = job.pipeline_definition ?? [];
+  const completedStages = stages.filter((s) => s.status === "completed").length;
+  const progressPct = stages.length > 0
+    ? Math.max(8, Math.round((completedStages / stages.length) * 100))
+    : 15;
+
   return (
     <section className="mx-auto w-full max-w-4xl flex-1 px-6 py-16">
       {/* Header */}
-      <div className="mb-10">
+      <div className="mb-8">
         <button
           onClick={() => router.push("/gallery")}
-          className="mb-4 text-sm text-zinc-500 hover:text-zinc-300"
+          className="mb-4 text-sm text-zinc-500 transition-colors hover:text-zinc-300"
         >
           ← Back to gallery
         </button>
-        <div className="flex items-center gap-4">
+        <div className="flex flex-wrap items-center gap-3">
           <h1 className="text-2xl font-semibold text-zinc-50">
             {typeof job.generation_params?.prompt === "string"
               ? (job.generation_params.prompt as string).slice(0, 80)
               : `${job.job_type} job`}
           </h1>
           <span
-            className={`rounded-full px-3 py-1 text-xs font-medium ${
+            className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ${
               statusColor[job.status] || "text-zinc-400"
             } bg-zinc-800`}
           >
+            <span
+              className={`h-1.5 w-1.5 rounded-full ${statusDot[job.status] || "bg-zinc-500"} ${
+                isActive ? "animate-pulse" : ""
+              }`}
+            />
             {job.status}
           </span>
         </div>
@@ -114,37 +145,42 @@ export default function JobDetailPage() {
       </div>
 
       {/* Progress for active jobs */}
-      {["pending", "submitted", "processing", "downloading"].includes(job.status) && (
-        <div className="mb-10 w-full overflow-hidden rounded-full bg-zinc-800">
-          <div className="h-2 animate-pulse rounded-full bg-violet-500" style={{ width: "60%" }} />
+      {isActive && (
+        <div className="mb-8 h-2 w-full overflow-hidden rounded-full bg-zinc-800">
+          <div
+            className="h-full animate-pulse rounded-full bg-gradient-to-r from-violet-600 via-violet-400 to-violet-500 transition-[width] duration-500"
+            style={{ width: `${progressPct}%` }}
+          />
         </div>
       )}
 
       {/* 3D Viewer */}
-      <div className="mb-10 grid grid-cols-1 gap-8 lg:grid-cols-2">
-        <div className="w-full">
-          <h2 className="mb-4 text-lg font-medium text-zinc-50">Generated Model</h2>
-          <MeshViewer
-            modelUrl={glb?.download_url ?? undefined}
-            previewUrl={preview?.download_url ?? undefined}
-            label="Generated model"
-          />
-        </div>
+      <div className="mb-8 rounded-2xl border border-white/10 bg-zinc-900/40 p-6">
+        <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
+          <div className="w-full">
+            <SectionHeading>Generated Model</SectionHeading>
+            <MeshViewer
+              modelUrl={glb?.download_url ?? undefined}
+              previewUrl={preview?.download_url ?? undefined}
+              label="Generated model"
+            />
+          </div>
 
-        <div className="w-full">
-          <h2 className="mb-4 text-lg font-medium text-zinc-50">NURBS Surface</h2>
-          <NurbsUploadViewer
-            initialUrl={nurbsJson?.download_url ?? undefined}
-            initialLabel="Generated NURBS"
-            emptyHint="No NURBS output for this job yet. Upload or drop a NURBS JSON file to preview it here."
-          />
+          <div className="w-full">
+            <SectionHeading>NURBS Surface</SectionHeading>
+            <NurbsUploadViewer
+              initialUrl={nurbsJson?.download_url ?? undefined}
+              initialLabel="Generated NURBS"
+              emptyHint="No NURBS output for this job yet. Upload or drop a NURBS JSON file to preview it here."
+            />
+          </div>
         </div>
       </div>
 
       {/* Params */}
-      <div className="mb-10 flex flex-col gap-4">
-        <h2 className="text-lg font-medium text-zinc-50">Generation Parameters</h2>
-        <dl className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+      <div className="mb-8 rounded-2xl border border-white/10 bg-zinc-900/40 p-6">
+        <SectionHeading>Generation Parameters</SectionHeading>
+        <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm sm:grid-cols-4">
           {job.job_type && (
             <>
               <dt className="text-zinc-500">Type</dt>
@@ -187,21 +223,21 @@ export default function JobDetailPage() {
 
         {/* Error */}
         {job.error_message && (
-          <div className="rounded-lg border border-red-500/30 bg-red-950/30 p-4 text-sm text-red-400">
+          <div className="mt-4 rounded-lg border border-red-500/30 bg-red-950/30 p-4 text-sm text-red-400">
             {job.error_message}
           </div>
         )}
       </div>
 
       {/* Pipeline stages */}
-      {job.pipeline_definition?.length > 0 && (
-        <div className="mb-10">
-          <h2 className="mb-4 text-lg font-medium text-zinc-50">Pipeline</h2>
+      {stages.length > 0 && (
+        <div className="mb-8 rounded-2xl border border-white/10 bg-zinc-900/40 p-6">
+          <SectionHeading>Pipeline</SectionHeading>
           <div className="flex flex-wrap gap-3">
-            {job.pipeline_definition.map((stage, idx) => (
+            {stages.map((stage, idx) => (
               <div
                 key={idx}
-                className={`rounded-full border px-4 py-2 text-xs ${
+                className={`flex items-center gap-1.5 rounded-full border px-4 py-2 text-xs transition-colors ${
                   stage.status === "completed"
                     ? "border-emerald-500/30 bg-emerald-950/20 text-emerald-400"
                     : stage.status === "pending"
@@ -209,6 +245,15 @@ export default function JobDetailPage() {
                       : "border-violet-500/30 bg-violet-950/20 text-violet-400"
                 }`}
               >
+                <span
+                  className={`h-1.5 w-1.5 rounded-full ${
+                    stage.status === "completed"
+                      ? "bg-emerald-400"
+                      : stage.status === "pending"
+                        ? "bg-zinc-600"
+                        : "bg-violet-400 animate-pulse"
+                  }`}
+                />
                 {stage.type} — {stage.status}
               </div>
             ))}
@@ -218,8 +263,8 @@ export default function JobDetailPage() {
 
       {/* Artifacts */}
       {job.artifacts?.length > 0 && (
-        <div>
-          <h2 className="mb-4 text-lg font-medium text-zinc-50">Downloads</h2>
+        <div className="rounded-2xl border border-white/10 bg-zinc-900/40 p-6">
+          <SectionHeading>Downloads</SectionHeading>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {job.artifacts
               .filter((a) => a.artifact_type !== "preview_image")
@@ -229,9 +274,9 @@ export default function JobDetailPage() {
                   href={a.download_url || "#"}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className={`flex items-center justify-between rounded-xl border border-white/10 bg-zinc-900 p-4 transition-colors ${
+                  className={`flex items-center justify-between rounded-xl border border-white/10 bg-zinc-900 p-4 transition-all ${
                     a.download_url
-                      ? "hover:border-violet-400/50 hover:bg-zinc-800"
+                      ? "hover:-translate-y-0.5 hover:border-violet-400/50 hover:bg-zinc-800 hover:shadow-lg hover:shadow-violet-950/40"
                       : "cursor-not-allowed opacity-50"
                   }`}
                 >
