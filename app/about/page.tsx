@@ -5,7 +5,7 @@ export default function AboutPage() {
   return (
     <section className="mx-auto w-full max-w-6xl flex-1 px-6 py-16">
       <div className="mb-12 text-center">
-        <h1 className="text-3xl font-semibold text-zinc-50 sm:text-4xl">
+        <h1 className="bg-gradient-to-br from-white to-violet-200 bg-clip-text text-3xl font-semibold text-transparent sm:text-4xl">
           About us
         </h1>
         <p className="mx-auto mt-3 max-w-2xl text-zinc-400">

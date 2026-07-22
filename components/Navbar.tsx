@@ -16,13 +16,18 @@ export default function Navbar() {
   }, [isAuthenticated]);
 
   return (
-    <header className="sticky top-0 z-50 border-b border-white/10 bg-black/60 backdrop-blur">
+    <header className="sticky top-0 z-50 border-b border-white/10 bg-zinc-950/70 backdrop-blur-md">
+      {/* thin neon rule along the bottom edge */}
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-violet-500/40 to-transparent" />
       <nav className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-        <Link href="/" className="text-sm font-semibold tracking-wide text-zinc-50">
+        <Link
+          href="/"
+          className="bg-gradient-to-r from-zinc-50 to-violet-300 bg-clip-text text-sm font-semibold tracking-wide text-transparent transition-opacity hover:opacity-80"
+        >
           mesh2nurbs
         </Link>
 
-        <div className="flex items-center gap-4 text-sm text-zinc-300">
+        <div className="flex items-center gap-4 text-sm text-zinc-400">
           <Link href="/about" className="transition-colors hover:text-white">
             About
           </Link>
@@ -38,7 +43,7 @@ export default function Navbar() {
           ) : isAuthenticated ? (
             <div className="flex items-center gap-3">
               {credits !== null && (
-                <span className="rounded-full bg-violet-500/10 px-3 py-1 text-xs text-violet-300">
+                <span className="rounded-full border border-violet-400/20 bg-violet-500/10 px-3 py-1 text-xs text-violet-300">
                   {credits} credits
                 </span>
               )}
@@ -87,7 +92,7 @@ export default function Navbar() {
               </Link>
               <Link
                 href="/register"
-                className="rounded-full bg-violet-500 px-4 py-2 font-medium text-white transition-colors hover:bg-violet-400"
+                className="rounded-full bg-gradient-to-r from-violet-500 to-fuchsia-500 px-4 py-2 font-medium text-white shadow-md shadow-violet-500/25 transition-all hover:shadow-lg hover:shadow-violet-500/40"
               >
                 Get Started
               </Link>
