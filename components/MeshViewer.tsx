@@ -111,7 +111,6 @@ function ModelFromUrl({ url }: { url: string }) {
 /* ------------------------------------------------------------------ */
 export default function MeshViewer({
   modelUrl,
-  previewUrl,
   label,
   className,
 }: MeshViewerProps) {
@@ -141,11 +140,12 @@ export default function MeshViewer({
         <Suspense fallback={null}>
           {modelUrl ? <ModelFromUrl url={modelUrl} /> : <PlaceholderMesh />}
         </Suspense>
-        {/* Static by default; only responds to drag/zoom while hovered. */}
+        {/* Spins passively; pauses so the user can drag/zoom while hovered,
+            then resumes rotating once the pointer leaves. */}
         <OrbitControls
           enablePan={true}
-          enabled={hovered}
-          autoRotate={false}
+          autoRotate={!hovered}
+          autoRotateSpeed={1.5}
         />
       </Canvas>
 
@@ -153,19 +153,6 @@ export default function MeshViewer({
       {!modelUrl && (
         <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-3 text-center text-xs text-zinc-300">
           {label ?? "Viewer placeholder — model will render here"}
-        </div>
-      )}
-
-      {/* Static preview cover: shown by default so the card sits still, then
-          fades out on hover to reveal the interactive (draggable) 3D model. */}
-      {previewUrl && modelUrl && (
-        <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-2xl bg-zinc-900 opacity-100 transition-opacity duration-500 group-hover:opacity-0">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={previewUrl}
-            alt="Model preview"
-            className="h-full w-full object-cover"
-          />
         </div>
       )}
 

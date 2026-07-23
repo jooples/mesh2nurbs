@@ -220,20 +220,17 @@ export default function CreatePage() {
               <span className="flex items-center justify-between gap-2 text-xs text-zinc-400">
                 <span>Face count</span>
                 <input
-                  type="number"
-                  min={3000}
-                  max={30000}
-                  step={1000}
-                  value={params.face_count}
-                  onChange={(e) =>
-                    setParams({ ...params, face_count: Number(e.target.value) })
-                  }
-                  onBlur={(e) =>
-                    setParams({
-                      ...params,
-                      face_count: Math.min(30000, Math.max(3000, Number(e.target.value) || 3000)),
-                    })
-                  }
+                  type="text"
+                  inputMode="numeric"
+                  value={params.face_count || ""}
+                  onChange={(e) => {
+                    const digits = e.target.value.replace(/[^0-9]/g, "");
+                    setParams({ ...params, face_count: digits === "" ? 0 : Number(digits) });
+                  }}
+                  onBlur={(e) => {
+                    const v = Number(e.target.value.replace(/[^0-9]/g, "")) || 3000;
+                    setParams({ ...params, face_count: Math.min(30000, Math.max(3000, v)) });
+                  }}
                   className="w-24 rounded-md border border-white/15 bg-zinc-900 px-2 py-1 text-right text-zinc-50 focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-500/20"
                 />
               </span>
