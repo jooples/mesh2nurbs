@@ -34,6 +34,8 @@ export default function JobDetailPage() {
   // status flip here — track whether we were still "active" to refresh the
   // shared balance exactly on that transition.
   const wasActiveRef = useRef(true);
+  const [ppLoading, setPpLoading] = useState(false);
+  const [ppMsg, setPpMsg] = useState<string | null>(null);
 
   const fetchJob = useCallback(async () => {
     try {
@@ -97,6 +99,23 @@ export default function JobDetailPage() {
   // Wired up so it auto-loads as soon as that conversion exists.
   const nurbsJson = job.artifacts?.find((a: Artifact) => a.artifact_type === "nurbs_json");
 
+  const handlePostProcess = async () => {
+    if (ppLoading) return;
+    setPpLoading(true); setPpMsg(null);
+    try {
+      const token = localStorage.getItem("access_token");
+      const res = await fetch(`/v1/jobs/${jobId}/post-process`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || `Failed (${res.status})`);
+      setPpMsg("Post-processing started!");
+      fetchJob();
+    } catch (err) { setPpMsg(err instanceof Error ? err.message : "Failed"); }
+    finally { setPpLoading(false); }
+  };
+
   const statusColor: Record<string, string> = {
     completed: "text-emerald-400",
     failed: "text-red-400",
@@ -118,6 +137,10 @@ export default function JobDetailPage() {
   const activeStatuses = ["pending", "submitted", "processing", "downloading"];
   const isActive = activeStatuses.includes(job.status);
   const stages = job.pipeline_definition ?? [];
+  const ppFailed = stages.some((s) => s.type === "alpha_wrap" && s.status === "failed")
+                || stages.some((s) => s.type === "mesh2nurbs" && s.status === "failed");
+  const ppRunning = stages.some((s) => (s.type === "alpha_wrap" || s.type === "mesh2nurbs") && s.status === "processing");
+  const ppDone = stages.some((s) => s.type === "mesh2nurbs" && s.status === "completed");
   const completedStages = stages.filter((s) => s.status === "completed").length;
   const progressPct = stages.length > 0
     ? Math.max(8, Math.round((completedStages / stages.length) * 100))
@@ -272,6 +295,35 @@ export default function JobDetailPage() {
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* Post-process retry button */}
+      {job.status === "completed" && obj && !ppRunning && !ppDone && (
+        <div className="mb-8 rounded-2xl border border-white/10 bg-zinc-900/40 p-6">
+          <SectionHeading>Post-Processing</SectionHeading>
+          {ppFailed && (
+            <p className="mb-3 text-sm text-red-400">Post-processing failed. You can retry.</p>
+          )}
+          {ppMsg && (
+            <p className={`mb-3 text-sm ${ppMsg.includes("started") ? "text-violet-400" : "text-red-400"}`}>{ppMsg}</p>
+          )}
+          <button
+            onClick={handlePostProcess}
+            disabled={ppLoading}
+            className="rounded-full bg-violet-500 px-6 py-2 text-sm font-semibold text-white transition-colors hover:bg-violet-400 disabled:opacity-50"
+          >
+            {ppLoading ? "Starting…" : ppFailed ? "Retry Post-Process" : "Post Process (Alpha Wrap + Mesh2NURBS)"}
+          </button>
+        </div>
+      )}
+      {ppRunning && (
+        <div className="mb-8 rounded-2xl border border-violet-500/30 bg-zinc-900/40 p-6">
+          <SectionHeading>Post-Processing</SectionHeading>
+          <p className="text-sm text-violet-400 flex items-center gap-2">
+            <span className="h-3 w-3 animate-spin rounded-full border border-violet-500 border-t-transparent" />
+            Processing mesh…
+          </p>
         </div>
       )}
 
