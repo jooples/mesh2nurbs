@@ -119,10 +119,13 @@ export default function MeshViewer({
   const isObj = lower.endsWith(".obj");
   const isGlb = lower.endsWith(".glb") || lower.endsWith(".gltf");
   const [brightLighting, setBrightLighting] = useState(false);
+  const [hovered, setHovered] = useState(false);
 
   return (
     <div
-      className={`group relative aspect-square w-full overflow-hidden rounded-2xl border border-white/10 bg-zinc-900 ${className ?? ""}`}
+      onPointerEnter={() => setHovered(true)}
+      onPointerLeave={() => setHovered(false)}
+      className={`group relative aspect-square w-full overflow-hidden rounded-2xl border border-white/10 bg-zinc-900 ${modelUrl ? "hover:cursor-grab active:cursor-grabbing" : ""} ${className ?? ""}`}
     >
       <Canvas camera={{ position: [2.5, 2, 2.5], fov: 45 }}>
         <ambientLight intensity={brightLighting ? 3.5 : 0.6} />
@@ -138,10 +141,11 @@ export default function MeshViewer({
         <Suspense fallback={null}>
           {modelUrl ? <ModelFromUrl url={modelUrl} /> : <PlaceholderMesh />}
         </Suspense>
+        {/* Static by default; only responds to drag/zoom while hovered. */}
         <OrbitControls
           enablePan={true}
-          autoRotate={!!modelUrl}
-          autoRotateSpeed={1.5}
+          enabled={hovered}
+          autoRotate={false}
         />
       </Canvas>
 
@@ -152,10 +156,10 @@ export default function MeshViewer({
         </div>
       )}
 
-      {/* Preview image on hover when model is loaded. Opaque background so the
-          auto-rotating canvas behind it can't show through a transparent PNG. */}
+      {/* Static preview cover: shown by default so the card sits still, then
+          fades out on hover to reveal the interactive (draggable) 3D model. */}
       {previewUrl && modelUrl && (
-        <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-2xl bg-zinc-900 opacity-0 transition-opacity duration-500 group-hover:opacity-100">
+        <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-2xl bg-zinc-900 opacity-100 transition-opacity duration-500 group-hover:opacity-0">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={previewUrl}
