@@ -16,7 +16,7 @@ type Params = {
 };
 
 const DEFAULT_PARAMS: Params = {
-  face_count: 500000,
+  face_count: 50000,
   generate_type: "Normal",
   enable_pbr: false,
   polygon_type: "triangle",
@@ -222,9 +222,9 @@ export default function CreatePage() {
               </span>
               <input
                 type="range"
-                min={3000}
-                max={1500000}
-                step={10000}
+                min={1000}
+                max={500000}
+                step={1000}
                 value={params.face_count}
                 onChange={(e) =>
                   setParams({ ...params, face_count: Number(e.target.value) })

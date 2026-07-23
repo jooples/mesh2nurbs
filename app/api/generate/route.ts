@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
         params: {
           prompt,
           enable_pbr: params.enable_pbr ?? false,
-          face_count: params.face_count ?? 500000,
+          face_count: params.face_count ?? 50000,
           generate_type: params.generate_type ?? "Normal",
           polygon_type: params.polygon_type ?? "triangle",
           model: params.model ?? "hy-3d-3.0",
