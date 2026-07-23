@@ -155,18 +155,30 @@ function NurbsPatches({
 export default function NurbsViewer({ data, label, className }: NurbsViewerProps) {
   const [showControlPoints, setShowControlPoints] = useState(true);
   const [showControlNet, setShowControlNet] = useState(true);
+  const [brightLighting, setBrightLighting] = useState(false);
 
   return (
     <div
       className={`relative aspect-square w-full overflow-hidden rounded-2xl border border-white/10 bg-zinc-900 ${className ?? ""}`}
     >
       <Canvas camera={{ position: [2.5, 2, 2.5], fov: 45 }}>
-        <ambientLight intensity={0.6} />
-        <directionalLight position={[3, 3, 3]} intensity={1} />
+        <ambientLight intensity={brightLighting ? 2 : 0.6} />
+        <directionalLight position={[3, 3, 3]} intensity={brightLighting ? 2.2 : 1} />
         <NurbsPatches data={data} showControlPoints={showControlPoints} showControlNet={showControlNet} />
         <OrbitControls enablePan={false} />
       </Canvas>
       <div className="pointer-events-auto absolute right-3 top-3 flex gap-2 text-xs">
+        <button
+          type="button"
+          onClick={() => setBrightLighting((v) => !v)}
+          className={`rounded-full border px-3 py-1 backdrop-blur ${
+            brightLighting
+              ? "border-amber-400/60 bg-amber-400/20 text-amber-200"
+              : "border-white/10 bg-black/40 text-zinc-300"
+          }`}
+        >
+          {brightLighting ? "☀️ Bright" : "💡 Lighting"}
+        </button>
         <button
           type="button"
           onClick={() => setShowControlPoints((v) => !v)}

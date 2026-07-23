@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useRef, useMemo } from "react";
+import { Suspense, useRef, useMemo, useState } from "react";
 import { Canvas, useFrame, useLoader } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
@@ -118,15 +118,23 @@ export default function MeshViewer({
   const lower = (modelUrl || "").split("?")[0].toLowerCase();
   const isObj = lower.endsWith(".obj");
   const isGlb = lower.endsWith(".glb") || lower.endsWith(".gltf");
+  const [brightLighting, setBrightLighting] = useState(false);
 
   return (
     <div
-      className={`relative aspect-square w-full overflow-hidden rounded-2xl border border-white/10 bg-zinc-900 ${className ?? ""}`}
+      className={`group relative aspect-square w-full overflow-hidden rounded-2xl border border-white/10 bg-zinc-900 ${className ?? ""}`}
     >
       <Canvas camera={{ position: [2.5, 2, 2.5], fov: 45 }}>
-        <ambientLight intensity={0.6} />
-        <directionalLight position={[3, 3, 3]} intensity={1.2} />
-        <directionalLight position={[-2, 1, -1]} intensity={0.3} />
+        <ambientLight intensity={brightLighting ? 3.5 : 0.6} />
+        <directionalLight position={[3, 3, 3]} intensity={brightLighting ? 4 : 1.2} />
+        <directionalLight position={[-2, 1, -1]} intensity={brightLighting ? 2.5 : 0.3} />
+        {brightLighting && (
+          <>
+            <directionalLight position={[0, -3, 2]} intensity={2} />
+            <directionalLight position={[-3, 2, -3]} intensity={2} />
+            <hemisphereLight args={["#ffffff", "#404040", 1.5]} />
+          </>
+        )}
         <Suspense fallback={null}>
           {modelUrl ? <ModelFromUrl url={modelUrl} /> : <PlaceholderMesh />}
         </Suspense>
@@ -146,7 +154,7 @@ export default function MeshViewer({
 
       {/* Preview image on hover when model is loaded */}
       {previewUrl && modelUrl && (
-        <div className="absolute inset-0 overflow-hidden rounded-2xl opacity-0 transition-opacity duration-500 hover:opacity-100">
+        <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-2xl opacity-0 transition-opacity duration-500 group-hover:opacity-100">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={previewUrl}
@@ -162,6 +170,23 @@ export default function MeshViewer({
           {(isObj && "OBJ") || (isGlb && "GLB") || "3D"}
         </div>
       )}
+
+      {/* Lighting toggle */}
+      <button
+        type="button"
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setBrightLighting((v) => !v);
+        }}
+        className={`pointer-events-auto absolute left-2 top-2 z-10 rounded-full border px-3 py-1 text-[10px] font-medium backdrop-blur ${
+          brightLighting
+            ? "border-amber-400/60 bg-amber-400/20 text-amber-200"
+            : "border-white/10 bg-black/60 text-white/70"
+        }`}
+      >
+        {brightLighting ? "☀️ Bright" : "💡 Lighting"}
+      </button>
     </div>
   );
 }
