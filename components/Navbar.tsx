@@ -3,8 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth";
-import { creditsApi } from "@/lib/api";
-import { useEffect, useState } from "react";
+import { useCredits } from "@/lib/credits";
 
 const navLinks = [
   { href: "/about", label: "About" },
@@ -15,13 +14,7 @@ const navLinks = [
 export default function Navbar() {
   const { user, isAuthenticated, isLoading, logout } = useAuth();
   const pathname = usePathname();
-  const [credits, setCredits] = useState<number | null>(null);
-
-  useEffect(() => {
-    if (isAuthenticated) {
-      creditsApi.getBalance().then((b) => setCredits(b.balance)).catch(() => {});
-    }
-  }, [isAuthenticated]);
+  const { balance: credits } = useCredits();
 
   return (
     <header className="sticky top-0 z-50 border-b border-white/10 bg-zinc-950/70 backdrop-blur-md">
@@ -60,9 +53,12 @@ export default function Navbar() {
           ) : isAuthenticated ? (
             <div className="flex items-center gap-3">
               {credits !== null && (
-                <span className="rounded-full border border-violet-400/20 bg-violet-500/10 px-3 py-1 text-xs text-violet-300">
+                <Link
+                  href="/billing"
+                  className="rounded-full border border-violet-400/20 bg-violet-500/10 px-3 py-1 text-xs text-violet-300 transition-colors hover:border-violet-400/40 hover:bg-violet-500/20"
+                >
                   {credits} credits
-                </span>
+                </Link>
               )}
               <Link
                 href="/create"

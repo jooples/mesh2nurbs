@@ -277,6 +277,15 @@ export const creditsApi = {
   async getBalance(): Promise<{ balance: number; lifetime_used: number }> {
     return apiFetch("/credits/balance");
   },
+
+  // Placeholder self-service top-up (no payment) — see backend TODO on
+  // POST /credits/topup. Swap for a real checkout flow before production.
+  async topUp(amount: number): Promise<{ balance: number }> {
+    return apiFetch("/credits/topup", {
+      method: "POST",
+      body: JSON.stringify({ amount }),
+    });
+  },
 };
 
 // ── Admin API ──
