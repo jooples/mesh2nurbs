@@ -75,27 +75,29 @@ export default function Navbar() {
                   {user?.display_name || user?.email?.split("@")[0] || "Account"}
                   <span className="ml-1 opacity-50">▾</span>
                 </button>
-                <div className="absolute right-0 top-full mt-1 hidden w-40 rounded-lg border border-white/10 bg-zinc-900 py-1 shadow-lg group-hover:block">
-                  <Link
-                    href="/create"
-                    className="block px-4 py-2 text-xs hover:bg-white/5"
-                  >
-                    New Model
-                  </Link>
-                  {user?.is_admin && (
+                <div className="absolute right-0 top-full hidden w-40 pt-1 group-hover:block">
+                  <div className="rounded-lg border border-white/10 bg-zinc-900 py-1 shadow-lg">
                     <Link
-                      href="/admin"
-                      className="block px-4 py-2 text-xs text-violet-400 hover:bg-white/5"
+                      href="/create"
+                      className="block px-4 py-2 text-xs hover:bg-white/5"
                     >
-                      Admin Panel
+                      New Model
                     </Link>
-                  )}
-                  <button
-                    onClick={logout}
-                    className="block w-full px-4 py-2 text-left text-xs text-red-400 hover:bg-white/5"
-                  >
-                    Sign out
-                  </button>
+                    {user?.is_admin && (
+                      <Link
+                        href="/admin"
+                        className="block px-4 py-2 text-xs text-violet-400 hover:bg-white/5"
+                      >
+                        Admin Panel
+                      </Link>
+                    )}
+                    <button
+                      onClick={logout}
+                      className="block w-full px-4 py-2 text-left text-xs text-red-400 hover:bg-white/5"
+                    >
+                      Sign out
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
