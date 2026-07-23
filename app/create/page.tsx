@@ -217,8 +217,25 @@ export default function CreatePage() {
         {showAdvanced && (
           <div className="grid grid-cols-1 gap-4 rounded-xl border border-white/10 bg-zinc-900/50 p-4 sm:grid-cols-2">
             <label className="flex flex-col gap-1">
-              <span className="text-xs text-zinc-400">
-                Face count: {params.face_count.toLocaleString()}
+              <span className="flex items-center justify-between gap-2 text-xs text-zinc-400">
+                <span>Face count</span>
+                <input
+                  type="number"
+                  min={3000}
+                  max={30000}
+                  step={1000}
+                  value={params.face_count}
+                  onChange={(e) =>
+                    setParams({ ...params, face_count: Number(e.target.value) })
+                  }
+                  onBlur={(e) =>
+                    setParams({
+                      ...params,
+                      face_count: Math.min(30000, Math.max(3000, Number(e.target.value) || 3000)),
+                    })
+                  }
+                  className="w-24 rounded-md border border-white/15 bg-zinc-900 px-2 py-1 text-right text-zinc-50 focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-500/20"
+                />
               </span>
               <input
                 type="range"
@@ -231,6 +248,9 @@ export default function CreatePage() {
                 }
                 className="accent-violet-500"
               />
+              <span className="text-[11px] text-zinc-500">
+                Type an exact value or drag the slider (3,000–30,000).
+              </span>
             </label>
 
             <label className="flex flex-col gap-1">
