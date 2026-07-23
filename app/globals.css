@@ -23,7 +23,8 @@ body {
 /* Night-city backdrop: soft neon glows bleeding in from the edges, no
    pattern or imagery. Fixed so it holds still while the page scrolls, and
    sits behind content but above the body background. Fixed positioning
-   also keeps it out of body's flex flow. */
+   also keeps it out of body's flex flow. A slow, subtle "breathing" drift
+   (the site's one moving accent) keeps it feeling alive without distraction. */
 body::after {
   content: "";
   position: fixed;
@@ -34,6 +35,18 @@ body::after {
     radial-gradient(45% 40% at 12% 0%, rgba(124, 110, 242, 0.13), transparent 70%),
     radial-gradient(40% 35% at 88% 6%, rgba(34, 211, 238, 0.07), transparent 70%),
     radial-gradient(55% 45% at 50% 100%, rgba(217, 70, 239, 0.05), transparent 70%);
+  transform-origin: center;
+  animation: ambientDrift 16s ease-in-out infinite;
+}
+
+@keyframes ambientDrift {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.82; transform: scale(1.05); }
+}
+
+/* Respect users who prefer reduced motion — hold the glow still. */
+@media (prefers-reduced-motion: reduce) {
+  body::after { animation: none; }
 }
 
 ::selection {

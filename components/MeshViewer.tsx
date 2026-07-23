@@ -152,9 +152,10 @@ export default function MeshViewer({
         </div>
       )}
 
-      {/* Preview image on hover when model is loaded */}
+      {/* Preview image on hover when model is loaded. Opaque background so the
+          auto-rotating canvas behind it can't show through a transparent PNG. */}
       {previewUrl && modelUrl && (
-        <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-2xl opacity-0 transition-opacity duration-500 group-hover:opacity-100">
+        <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-2xl bg-zinc-900 opacity-0 transition-opacity duration-500 group-hover:opacity-100">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={previewUrl}
