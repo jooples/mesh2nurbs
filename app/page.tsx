@@ -6,24 +6,21 @@ import Hero from "@/components/Hero";
 import GalleryPreview from "@/components/GalleryPreview";
 import WhyNurbs from "@/components/WhyNurbs";
 import { useAuth } from "@/lib/auth";
-import { jobsApi, creditsApi, type JobSummary } from "@/lib/api";
+import { useCredits } from "@/lib/credits";
+import { jobsApi, type JobSummary } from "@/lib/api";
 
 export default function Home() {
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
+  const { balance: credits } = useCredits();
   const [recentJobs, setRecentJobs] = useState<JobSummary[]>([]);
-  const [credits, setCredits] = useState<number | null>(null);
   const [dashboardLoading, setDashboardLoading] = useState(true);
 
   useEffect(() => {
     if (!isAuthenticated) { setDashboardLoading(false); return; }
     async function load() {
       try {
-        const [j, c] = await Promise.all([
-          jobsApi.listJobs({ per_page: 6 }),
-          creditsApi.getBalance(),
-        ]);
+        const j = await jobsApi.listJobs({ per_page: 6 });
         setRecentJobs(j.items);
-        setCredits(c.balance);
       } catch { /* dashboard is non-critical */ }
       finally { setDashboardLoading(false); }
     }
@@ -86,9 +83,9 @@ export default function Home() {
                   href={`/jobs/${job.id}`}
                   className="group rounded-xl border border-white/5 bg-zinc-900/60 p-3 transition-all duration-200 hover:-translate-y-0.5 hover:border-violet-400/30 hover:shadow-lg hover:shadow-violet-950/40"
                 >
-                  <div className="mb-2 aspect-square rounded-lg bg-gradient-to-br from-zinc-800 to-zinc-900" />
+                  <RecentModelThumb job={job} />
                   <p className="truncate text-xs text-zinc-400 group-hover:text-zinc-200">{job.title || job.job_type}</p>
-                  <span className={`mt-1 inline-block rounded-full px-2 py-0.5 text-[10px] ${job.status === "completed" ? "bg-emerald-500/10 text-emerald-400" : "bg-amber-500/10 text-amber-400"}`}>{job.status}</span>
+                  <span className={`mt-1 inline-block rounded-full px-2 py-0.5 text-[10px] ${job.status === "completed" ? "bg-emerald-500/10 text-emerald-400" : job.status === "failed" || job.status === "cancelled" ? "bg-red-500/10 text-red-400" : "bg-amber-500/10 text-amber-400"}`}>{job.status}</span>
                 </Link>
               ))}
             </div>
@@ -105,5 +102,62 @@ export default function Home() {
       <GalleryPreview />
       <WhyNurbs />
     </>
+  );
+}
+
+// Thumbnail for the homepage's recent-models grid. Renders a flat 2D preview
+// image instead of a 3D viewer — this grid can show many cards at once, and
+// spinning up a WebGL canvas per card is unnecessary here. Falls back to a
+// status placeholder while processing or if generation failed.
+function RecentModelThumb({ job }: { job: JobSummary }) {
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (job.status !== "completed") return;
+    let cancelled = false;
+    jobsApi
+      .getJob(job.id)
+      .then((detail) => {
+        if (cancelled) return;
+        const preview = detail.artifacts?.find((a) => a.artifact_type === "preview_image");
+        setPreviewUrl(preview?.download_url ?? null);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [job.id, job.status]);
+
+  if (job.status === "failed" || job.status === "cancelled") {
+    return (
+      <div className="mb-2 flex aspect-square items-center justify-center rounded-lg border border-red-500/10 bg-red-950/20">
+        <span className="text-xl" aria-hidden>⚠️</span>
+      </div>
+    );
+  }
+
+  if (job.status !== "completed") {
+    return (
+      <div className="mb-2 flex aspect-square items-center justify-center rounded-lg bg-gradient-to-br from-zinc-800 to-zinc-900">
+        <div className="h-5 w-5 animate-spin rounded-full border-2 border-violet-400 border-t-transparent" />
+      </div>
+    );
+  }
+
+  if (previewUrl) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={previewUrl}
+        alt=""
+        className="mb-2 aspect-square w-full rounded-lg bg-zinc-900 object-cover"
+      />
+    );
+  }
+
+  return (
+    <div className="mb-2 flex aspect-square items-center justify-center rounded-lg bg-gradient-to-br from-zinc-800 to-zinc-900 text-zinc-600">
+      <span className="text-xl" aria-hidden>🧊</span>
+    </div>
   );
 }

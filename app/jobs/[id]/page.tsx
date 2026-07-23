@@ -1,11 +1,14 @@
 "use client";
 
-import { useEffect, useState, useCallback, type ReactNode } from "react";
+import { useEffect, useState, useCallback, useRef, type ReactNode } from "react";
 import { useParams, useRouter } from "next/navigation";
 import MeshViewer from "@/components/MeshViewer";
 import NurbsUploadViewer from "@/components/NurbsUploadViewer";
 import { jobsApi, type JobDetail, type Artifact } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { useCredits } from "@/lib/credits";
+
+const ACTIVE_STATUSES = ["pending", "submitted", "processing", "submitting", "downloading", "queued", "in_progress"];
 
 function SectionHeading({ children }: { children: ReactNode }) {
   return (
@@ -20,23 +23,36 @@ export default function JobDetailPage() {
   const params = useParams();
   const router = useRouter();
   const { isAuthenticated } = useAuth();
+  const { refreshCredits } = useCredits();
   const jobId = params.id as string;
 
   const [job, setJob] = useState<JobDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Credits are deducted server-side once a job finishes processing (not at
+  // submission time), so we can't know the new balance until we notice the
+  // status flip here — track whether we were still "active" to refresh the
+  // shared balance exactly on that transition.
+  const wasActiveRef = useRef(true);
 
   const fetchJob = useCallback(async () => {
     try {
       const data = await jobsApi.getJob(jobId);
       setJob(data);
       setError(null);
+      const isActive = ACTIVE_STATUSES.includes(data.status);
+      if (wasActiveRef.current && !isActive) {
+        refreshCredits();
+      }
+      wasActiveRef.current = isActive;
+      return data;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load job");
+      return null;
     } finally {
       setIsLoading(false);
     }
-  }, [jobId]);
+  }, [jobId, refreshCredits]);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -46,11 +62,9 @@ export default function JobDetailPage() {
     fetchJob();
 
     // Poll while active
-    const activeStatuses = ["pending", "submitted", "processing", "submitting", "downloading", "queued", "in_progress"];
     const interval = setInterval(() => {
-      fetchJob().then(() => {
-        // stop polling if terminal
-        if (job && !activeStatuses.includes(job.status)) {
+      fetchJob().then((data) => {
+        if (data && !ACTIVE_STATUSES.includes(data.status)) {
           clearInterval(interval);
         }
       });
