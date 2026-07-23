@@ -137,10 +137,9 @@ export default function JobDetailPage() {
   const activeStatuses = ["pending", "submitted", "processing", "downloading"];
   const isActive = activeStatuses.includes(job.status);
   const stages = job.pipeline_definition ?? [];
-  const ppFailed = stages.some((s) => s.type === "alpha_wrap" && s.status === "failed")
-                || stages.some((s) => s.type === "mesh2nurbs" && s.status === "failed");
-  const ppRunning = stages.some((s) => (s.type === "alpha_wrap" || s.type === "mesh2nurbs") && s.status === "processing");
-  const ppDone = stages.some((s) => s.type === "mesh2nurbs" && s.status === "completed");
+  const ppFailed = stages.some((s) => s.type === "post_process" && s.status === "failed");
+  const ppRunning = stages.some((s) => s.type === "post_process" && s.status === "processing");
+  const ppDone = stages.some((s) => s.type === "post_process" && s.status === "completed");
   const completedStages = stages.filter((s) => s.status === "completed").length;
   const progressPct = stages.length > 0
     ? Math.max(8, Math.round((completedStages / stages.length) * 100))
