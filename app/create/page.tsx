@@ -3,8 +3,7 @@
 import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/v1";
+import { jobsApi, ApiError } from "@/lib/api";
 
 type TabType = "text" | "image";
 
@@ -48,8 +47,6 @@ export default function CreatePage() {
     setError(null);
   }, []);
 
-  const getToken = () => localStorage.getItem("access_token");
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isLoading) return;
@@ -64,53 +61,39 @@ export default function CreatePage() {
     setError(null);
 
     try {
-      const token = getToken();
-      const headers: Record<string, string> = {
-        Authorization: `Bearer ${token}`,
-      };
-
-      let res: Response;
+      let job;
 
       if (activeTab === "text") {
-        res = await fetch(`${API_BASE}/jobs/text-to-3d`, {
-          method: "POST",
-          headers: { ...headers, "Content-Type": "application/json" },
-          body: JSON.stringify({
-            params: {
-              prompt: prompt.trim(),
-              ...(params.enable_pbr !== undefined && { enable_pbr: params.enable_pbr }),
-              ...(params.face_count && { face_count: params.face_count }),
-              ...(params.generate_type && { generate_type: params.generate_type }),
-              ...(params.polygon_type && { polygon_type: params.polygon_type }),
-            },
-          }),
+        job = await jobsApi.createTextTo3D({
+          prompt: prompt.trim(),
+          ...(params.enable_pbr !== undefined && { enable_pbr: params.enable_pbr }),
+          ...(params.face_count && { face_count: params.face_count }),
+          ...(params.generate_type && { generate_type: params.generate_type }),
+          ...(params.polygon_type && { polygon_type: params.polygon_type }),
         });
       } else {
-        const formData = new FormData();
-        formData.append("image", imageFile!);
-        if (prompt.trim()) formData.append("prompt", prompt.trim());
-        formData.append("enable_pbr", String(params.enable_pbr));
-        formData.append("face_count", String(params.face_count));
-        formData.append("generate_type", params.generate_type);
-        formData.append("polygon_type", params.polygon_type);
-
-        res = await fetch(`${API_BASE}/jobs/image-to-3d`, {
-          method: "POST",
-          headers: { Authorization: headers.Authorization },
-          body: formData,
+        job = await jobsApi.createImageTo3D(imageFile!, {
+          prompt: prompt.trim() || undefined,
+          enable_pbr: params.enable_pbr,
+          face_count: params.face_count,
+          generate_type: params.generate_type,
+          polygon_type: params.polygon_type,
         });
       }
 
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error((errData as { detail?: string }).detail || `Submit failed (${res.status})`);
-      }
-
-      const { id: jobId } = await res.json();
       // Redirect to job detail page — status is polled there in real time
-      router.push(`/jobs/${jobId}`);
+      router.push(`/jobs/${job.id}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      if (err instanceof ApiError) {
+        const detail = err.detail;
+        setError(
+          typeof detail === "string"
+            ? detail
+            : (detail as { detail?: string })?.detail || "Submit failed"
+        );
+      } else {
+        setError(err instanceof Error ? err.message : "Something went wrong");
+      }
     } finally {
       setIsLoading(false);
     }
