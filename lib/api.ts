@@ -201,9 +201,24 @@ export type JobDetail = JobResponse & {
   error_message: string | null;
   current_stage: number;
   artifacts: Artifact[];
+  is_public: boolean;
+  published_at: string | null;
+  public_title: string | null;
+  publisher_name: string | null;
   submitted_at: string | null;
   started_at: string | null;
   completed_at: string | null;
+};
+
+export type PublicJobDetail = {
+  id: string;
+  title: string | null;
+  job_type: string;
+  publisher_name: string | null;
+  generation_params: Record<string, unknown>;
+  artifacts: Artifact[];
+  published_at: string | null;
+  created_at: string;
 };
 
 export type JobSummary = {
@@ -215,6 +230,16 @@ export type JobSummary = {
   created_at: string;
   glb_url: string | null;
   preview_image_url: string | null;
+  is_public: boolean;
+  publisher_name: string | null;
+};
+
+export type EstimateResponse = {
+  generation_estimated_seconds: number | null;
+  generation_sample_size: number;
+  post_process_estimated_seconds: number | null;
+  post_process_sample_size: number;
+  post_process_failure_rate: number | null;
 };
 
 export type PaginatedResponse<T> = {
@@ -265,12 +290,14 @@ export const jobsApi = {
     per_page?: number;
     status?: string;
     job_type?: string;
+    search?: string;
   }): Promise<PaginatedResponse<JobSummary>> {
     const searchParams = new URLSearchParams();
     if (params?.page) searchParams.set("page", String(params.page));
     if (params?.per_page) searchParams.set("per_page", String(params.per_page));
     if (params?.status) searchParams.set("status", params.status);
     if (params?.job_type) searchParams.set("job_type", params.job_type);
+    if (params?.search) searchParams.set("search", params.search);
 
     const qs = searchParams.toString();
     return apiFetch<PaginatedResponse<JobSummary>>(`/jobs${qs ? `?${qs}` : ""}`);
@@ -278,6 +305,67 @@ export const jobsApi = {
 
   async cancelJob(jobId: string): Promise<void> {
     return apiFetch<void>(`/jobs/${jobId}`, { method: "DELETE" });
+  },
+
+  // Rough duration estimate from historical data. Null *_estimated_seconds
+  // means "not enough history yet" — the caller should show that, not 0.
+  async estimateTime(params: {
+    job_type: string;
+    face_count?: number;
+    alpha?: number;
+    offset?: number;
+  }): Promise<EstimateResponse> {
+    const searchParams = new URLSearchParams();
+    searchParams.set("job_type", params.job_type);
+    if (params.face_count) searchParams.set("face_count", String(params.face_count));
+    if (params.alpha !== undefined) searchParams.set("alpha", String(params.alpha));
+    if (params.offset !== undefined) searchParams.set("offset", String(params.offset));
+    return apiFetch<EstimateResponse>(`/jobs/estimate?${searchParams.toString()}`);
+  },
+
+  // Public gallery — no auth required, so pass authenticated=false to skip
+  // attaching a token / triggering any login redirect for anonymous visitors.
+  async listPublicJobs(params?: {
+    page?: number;
+    per_page?: number;
+    search?: string;
+  }): Promise<PaginatedResponse<JobSummary>> {
+    const searchParams = new URLSearchParams();
+    if (params?.page) searchParams.set("page", String(params.page));
+    if (params?.per_page) searchParams.set("per_page", String(params.per_page));
+    if (params?.search) searchParams.set("search", params.search);
+
+    const qs = searchParams.toString();
+    return apiFetch<PaginatedResponse<JobSummary>>(
+      `/jobs/public${qs ? `?${qs}` : ""}`,
+      {},
+      false
+    );
+  },
+
+  async getPublicJob(jobId: string): Promise<PublicJobDetail> {
+    return apiFetch<PublicJobDetail>(`/jobs/public/${jobId}`, {}, false);
+  },
+
+  async setPublished(
+    jobId: string,
+    isPublic: boolean,
+    opts?: { publicTitle?: string; publisherName?: string }
+  ): Promise<{
+    id: string;
+    is_public: boolean;
+    published_at: string | null;
+    public_title: string | null;
+    publisher_name: string | null;
+  }> {
+    return apiFetch(`/jobs/${jobId}/publish`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        is_public: isPublic,
+        public_title: opts?.publicTitle,
+        publisher_name: opts?.publisherName,
+      }),
+    });
   },
 
   // Trigger (or re-trigger) post-processing. Omit alpha/offset to reuse the

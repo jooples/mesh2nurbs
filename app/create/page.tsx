@@ -4,6 +4,7 @@ import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import { jobsApi, ApiError } from "@/lib/api";
+import TimeEstimate from "@/components/TimeEstimate";
 
 type TabType = "text" | "image";
 
@@ -407,6 +408,14 @@ export default function CreatePage() {
             </div>
           </div>
         )}
+
+        <TimeEstimate
+          jobType={activeTab === "text" ? "text-to-3d" : "image-to-3d"}
+          faceCount={params.face_count}
+          alpha={params.alpha}
+          offset={params.offset}
+          className="self-center"
+        />
 
         <button
           type="submit"

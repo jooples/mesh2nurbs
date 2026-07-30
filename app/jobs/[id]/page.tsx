@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useRef, type ReactNode } from "react"
 import { useParams, useRouter } from "next/navigation";
 import MeshViewer from "@/components/MeshViewer";
 import NurbsUploadViewer from "@/components/NurbsUploadViewer";
+import TimeEstimate from "@/components/TimeEstimate";
 import { jobsApi, type JobDetail, type Artifact } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { useCredits } from "@/lib/credits";
@@ -56,6 +57,16 @@ export default function JobDetailPage() {
   const [ppAlpha, setPpAlpha] = useState(0.05);
   const [ppOffset, setPpOffset] = useState(0.005);
   const ppParamsInitRef = useRef(false);
+  const [publishLoading, setPublishLoading] = useState(false);
+  // Kept entirely separate from ppMsg/ppMsgKind (the post-process/regenerate
+  // NURBS status area) so a publish error never shows up under the wrong
+  // section — see the bug this was split out to fix.
+  const [publishMsg, setPublishMsg] = useState<string | null>(null);
+  const [publishMsgKind, setPublishMsgKind] = useState<"success" | "error">("success");
+  const [showPublishModal, setShowPublishModal] = useState(false);
+  const [publicTitleInput, setPublicTitleInput] = useState("");
+  const [publisherNameInput, setPublisherNameInput] = useState("");
+  const [isAnonymous, setIsAnonymous] = useState(false);
   // Per-stage-index start times for the fake progress trickle (see render).
   const stageTimersRef = useRef<Record<number, number>>({});
   // Forces a re-render every second while active so the trickle animates
@@ -203,6 +214,60 @@ export default function JobDetailPage() {
     finally { setPpLoading(false); }
   };
 
+  const openPublishModal = () => {
+    if (!job) return;
+    setPublicTitleInput(job.public_title || job.title || "");
+    setPublisherNameInput(job.publisher_name || "");
+    setIsAnonymous(job.is_public ? !job.publisher_name : false);
+    setPublishMsg(null);
+    setShowPublishModal(true);
+  };
+
+  const handlePublishConfirm = async () => {
+    if (!job || publishLoading) return;
+    setPublishLoading(true);
+    setPublishMsg(null);
+    try {
+      const result = await jobsApi.setPublished(jobId, true, {
+        publicTitle: publicTitleInput,
+        publisherName: isAnonymous ? undefined : publisherNameInput,
+      });
+      setJob({
+        ...job,
+        is_public: result.is_public,
+        published_at: result.published_at,
+        public_title: result.public_title,
+        publisher_name: result.publisher_name,
+      });
+      setShowPublishModal(false);
+      setPublishMsgKind("success");
+      setPublishMsg("Published to the public gallery.");
+    } catch (err) {
+      setPublishMsgKind("error");
+      setPublishMsg(err instanceof Error ? err.message : "Failed to publish");
+    } finally {
+      setPublishLoading(false);
+    }
+  };
+
+  const handleUnpublish = async () => {
+    if (!job || publishLoading) return;
+    setPublishLoading(true);
+    setPublishMsg(null);
+    try {
+      const result = await jobsApi.setPublished(jobId, false);
+      setJob({ ...job, is_public: result.is_public, published_at: result.published_at });
+      setShowPublishModal(false);
+      setPublishMsgKind("success");
+      setPublishMsg("Removed from the public gallery.");
+    } catch (err) {
+      setPublishMsgKind("error");
+      setPublishMsg(err instanceof Error ? err.message : "Failed to unpublish");
+    } finally {
+      setPublishLoading(false);
+    }
+  };
+
   const statusColor: Record<string, string> = {
     completed: "text-emerald-400",
     failed: "text-red-400",
@@ -289,11 +354,35 @@ export default function JobDetailPage() {
             />
             {statusLabel[displayStatus] || displayStatus}
           </span>
+          {job.status === "completed" && (
+            <button
+              type="button"
+              onClick={openPublishModal}
+              disabled={publishLoading}
+              className={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors disabled:opacity-50 ${
+                job.is_public
+                  ? "border-violet-400/60 bg-violet-500/20 text-violet-200 hover:bg-violet-500/30"
+                  : "border-white/10 bg-black/20 text-zinc-400 hover:text-zinc-200"
+              }`}
+              title={
+                job.is_public
+                  ? "Visible in the public gallery — click to edit or unpublish"
+                  : "Publish this model to the public gallery"
+              }
+            >
+              {job.is_public ? "Published ✓" : "Publish to gallery"}
+            </button>
+          )}
         </div>
         <p className="mt-2 text-sm text-zinc-500">
           Job ID: {jobId.slice(0, 8)}… | Created:{" "}
           {new Date(job.created_at).toLocaleString()}
         </p>
+        {publishMsg && (
+          <p className={`mt-2 text-sm ${publishMsgKind === "error" ? "text-red-400" : "text-emerald-400"}`}>
+            {publishMsg}
+          </p>
+        )}
       </div>
 
       {/* Progress for active jobs */}
@@ -515,6 +604,15 @@ export default function JobDetailPage() {
             </label>
           </div>
 
+          <TimeEstimate
+            jobType={job.job_type}
+            faceCount={typeof job.generation_params?.face_count === "number" ? job.generation_params.face_count : undefined}
+            alpha={ppAlpha}
+            offset={ppOffset}
+            mode="post_process_only"
+            className="mb-3"
+          />
+
           <button
             onClick={handlePostProcess}
             disabled={ppLoading}
@@ -572,6 +670,92 @@ export default function JobDetailPage() {
                   </span>
                 </a>
               ))}
+          </div>
+        </div>
+      )}
+
+      {showPublishModal && job && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-6 backdrop-blur-sm"
+          onClick={() => !publishLoading && setShowPublishModal(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl border border-white/10 bg-zinc-950 p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="mb-1 text-lg font-semibold text-zinc-50">
+              {job.is_public ? "Edit gallery listing" : "Publish to gallery"}
+            </h2>
+            <p className="mb-5 text-sm text-zinc-500">
+              Visible to everyone on the Public Gallery tab — no sign-in required.
+            </p>
+
+            <label className="mb-1 block text-xs font-medium text-zinc-400">Object name</label>
+            <input
+              type="text"
+              value={publicTitleInput}
+              onChange={(e) => setPublicTitleInput(e.target.value)}
+              placeholder={job.title || "Untitled"}
+              maxLength={120}
+              className="mb-4 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-violet-400/50"
+            />
+
+            <label className="mb-1 block text-xs font-medium text-zinc-400">Your name</label>
+            <input
+              type="text"
+              value={publisherNameInput}
+              onChange={(e) => setPublisherNameInput(e.target.value)}
+              disabled={isAnonymous}
+              placeholder="Shown as the creator"
+              maxLength={60}
+              className="mb-2 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-violet-400/50 disabled:opacity-40"
+            />
+            <label className="mb-5 flex items-center gap-2 text-sm text-zinc-400">
+              <input
+                type="checkbox"
+                checked={isAnonymous}
+                onChange={(e) => setIsAnonymous(e.target.checked)}
+                className="h-3.5 w-3.5 rounded border-white/20 bg-black/30 accent-violet-500"
+              />
+              Publish anonymously
+            </label>
+
+            {publishMsg && publishMsgKind === "error" && (
+              <p className="mb-4 text-sm text-red-400">{publishMsg}</p>
+            )}
+
+            <div className="flex items-center justify-between gap-3">
+              {job.is_public ? (
+                <button
+                  type="button"
+                  onClick={handleUnpublish}
+                  disabled={publishLoading}
+                  className="rounded-full border border-red-500/30 bg-red-950/30 px-4 py-2 text-xs font-medium text-red-400 transition-colors hover:bg-red-950/50 disabled:opacity-50"
+                >
+                  {publishLoading ? "…" : "Unpublish"}
+                </button>
+              ) : (
+                <span />
+              )}
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowPublishModal(false)}
+                  disabled={publishLoading}
+                  className="rounded-full border border-white/10 bg-black/20 px-4 py-2 text-xs font-medium text-zinc-300 transition-colors hover:text-white disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handlePublishConfirm}
+                  disabled={publishLoading}
+                  className="rounded-full bg-gradient-to-r from-violet-500 to-fuchsia-500 px-4 py-2 text-xs font-semibold text-white shadow-md shadow-violet-500/25 transition-all hover:shadow-lg hover:shadow-violet-500/40 disabled:opacity-50"
+                >
+                  {publishLoading ? "…" : job.is_public ? "Save changes" : "Publish"}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
