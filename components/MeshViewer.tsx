@@ -137,7 +137,7 @@ export default function MeshViewer({
             <hemisphereLight args={["#ffffff", "#404040", 1.5]} />
           </>
         )}
-        <Suspense fallback={null}>
+        <Suspense fallback={<PlaceholderMesh />}>
           {modelUrl ? <ModelFromUrl url={modelUrl} /> : <PlaceholderMesh />}
         </Suspense>
         {/* Spins passively; pauses so the user can drag/zoom while hovered,

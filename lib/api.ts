@@ -169,6 +169,9 @@ export type TextTo3DParams = {
   generate_type?: string;
   polygon_type?: string;
   model?: string;
+  alpha?: number;
+  offset?: number;
+  auto_post_process?: boolean;
 };
 
 export type JobResponse = {
@@ -194,6 +197,7 @@ export type Artifact = {
 
 export type JobDetail = JobResponse & {
   user_id: string;
+  title: string | null;
   error_message: string | null;
   current_stage: number;
   artifacts: Artifact[];
@@ -209,6 +213,8 @@ export type JobSummary = {
   title: string | null;
   external_job_id: string | null;
   created_at: string;
+  glb_url: string | null;
+  preview_image_url: string | null;
 };
 
 export type PaginatedResponse<T> = {
@@ -239,6 +245,10 @@ export const jobsApi = {
     if (params?.generate_type) formData.append("generate_type", params.generate_type);
     if (params?.polygon_type) formData.append("polygon_type", params.polygon_type);
     if (params?.model) formData.append("model", params.model);
+    if (params?.alpha !== undefined) formData.append("alpha", String(params.alpha));
+    if (params?.offset !== undefined) formData.append("offset", String(params.offset));
+    if (params?.auto_post_process !== undefined)
+      formData.append("auto_post_process", String(params.auto_post_process));
 
     return apiFetch<JobResponse>("/jobs/image-to-3d", {
       method: "POST",
@@ -268,6 +278,19 @@ export const jobsApi = {
 
   async cancelJob(jobId: string): Promise<void> {
     return apiFetch<void>(`/jobs/${jobId}`, { method: "DELETE" });
+  },
+
+  // Trigger (or re-trigger) post-processing. Omit alpha/offset to reuse the
+  // job's last-used values; pass them to regenerate NURBS output from the
+  // same source mesh with different alpha_wrap parameters.
+  async postProcess(
+    jobId: string,
+    overrides?: { alpha?: number; offset?: number }
+  ): Promise<{ job_id: string; status: string; alpha: number; offset: number; message: string }> {
+    return apiFetch(`/jobs/${jobId}/post-process`, {
+      method: "POST",
+      body: JSON.stringify(overrides ?? {}),
+    });
   },
 };
 

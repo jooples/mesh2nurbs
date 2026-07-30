@@ -3,36 +3,77 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import MeshViewer from "@/components/MeshViewer";
-import { jobsApi, type JobSummary, type JobDetail } from "@/lib/api";
+import { jobsApi, type JobSummary } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 
+// Stale-while-revalidate cache so repeat visits paint instantly instead of
+// re-running the list query (and its per-card thumbnail fetches) every time.
+const CACHE_PREFIX = "gallery_cache:";
+const CACHE_MAX_AGE_MS = 5 * 60 * 1000;
+
+function readCache(userId: string): JobSummary[] | null {
+  try {
+    const raw = sessionStorage.getItem(CACHE_PREFIX + userId);
+    if (!raw) return null;
+    const { jobs, cachedAt } = JSON.parse(raw) as { jobs: JobSummary[]; cachedAt: number };
+    if (Date.now() - cachedAt > CACHE_MAX_AGE_MS) return null;
+    return jobs;
+  } catch {
+    return null;
+  }
+}
+
+function writeCache(userId: string, jobs: JobSummary[]) {
+  try {
+    sessionStorage.setItem(
+      CACHE_PREFIX + userId,
+      JSON.stringify({ jobs, cachedAt: Date.now() })
+    );
+  } catch {
+    // sessionStorage full/unavailable — caching is a perf nicety, safe to skip
+  }
+}
+
 export default function GalleryPage() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const [jobs, setJobs] = useState<JobSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    setIsLoading(true);
+    if (!isAuthenticated || !user) {
+      setIsLoading(false);
+      return;
+    }
+
+    const cached = readCache(user.id);
+    if (cached) {
+      setJobs(cached);
+      setIsLoading(false);
+    } else {
+      setIsLoading(true);
+    }
     setError(null);
+
     async function load() {
       try {
-        if (isAuthenticated) {
-          const data = await jobsApi.listJobs({
-            status: "completed",
-            per_page: 50,
-          });
-          setJobs(data.items);
-        }
+        const data = await jobsApi.listJobs({
+          status: "completed",
+          per_page: 50,
+        });
+        setJobs(data.items);
+        writeCache(user!.id, data.items);
       } catch (err) {
         console.error("Failed to load gallery:", err);
-        setError(err instanceof Error ? err.message : "Failed to load");
+        if (!cached) {
+          setError(err instanceof Error ? err.message : "Failed to load");
+        }
       } finally {
         setIsLoading(false);
       }
     }
     load();
-  }, [isAuthenticated]);
+  }, [isAuthenticated, user]);
 
   return (
     <section className="mx-auto w-full max-w-6xl flex-1 px-6 py-16">
@@ -84,30 +125,18 @@ export default function GalleryPage() {
 }
 
 function GalleryJobCard({ job }: { job: JobSummary }) {
-  const [detail, setDetail] = useState<JobDetail | null>(null);
-
-  useEffect(() => {
-    jobsApi.getJob(job.id).then(setDetail).catch(() => {});
-  }, [job.id]);
-
-  const glb = detail?.artifacts?.find((a) => a.artifact_type === "glb");
-  const preview = detail?.artifacts?.find((a) => a.artifact_type === "preview_image");
-
-  const title =
-    (detail?.generation_params?.prompt as string)?.slice(0, 60) ||
-    job.title ||
-    job.job_type;
+  const title = job.title || job.job_type;
 
   return (
     <Link href={`/jobs/${job.id}`} className="group flex flex-col gap-3">
       <div className="overflow-hidden rounded-2xl ring-1 ring-white/5 transition-all duration-200 group-hover:shadow-lg group-hover:shadow-violet-950/40 group-hover:ring-violet-400/30">
         <MeshViewer
-          modelUrl={glb?.download_url ?? undefined}
-          previewUrl={preview?.download_url ?? undefined}
+          modelUrl={job.glb_url ?? undefined}
+          previewUrl={job.preview_image_url ?? undefined}
         />
       </div>
       <div>
-        <h3 className="text-sm font-semibold text-zinc-50 transition-colors group-hover:text-violet-300">
+        <h3 className="truncate text-sm font-semibold text-zinc-50 transition-colors group-hover:text-violet-300">
           {title}
         </h3>
         <p className="mt-0.5 text-xs text-zinc-500">

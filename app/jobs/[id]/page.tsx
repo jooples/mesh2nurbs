@@ -10,6 +10,14 @@ import { useCredits } from "@/lib/credits";
 
 const ACTIVE_STATUSES = ["pending", "submitted", "processing", "submitting", "downloading", "queued", "in_progress"];
 
+// A job is "active" (worth polling / showing progress for) if either the
+// overall job is mid-generation, or any pipeline stage — including
+// post-process, which doesn't change job.status — is actively running.
+function isJobActive(data: JobDetail): boolean {
+  if (ACTIVE_STATUSES.includes(data.status)) return true;
+  return (data.pipeline_definition ?? []).some((s) => s.status === "processing");
+}
+
 function SectionHeading({ children }: { children: ReactNode }) {
   return (
     <h2 className="mb-4 flex items-center gap-2 text-lg font-medium text-zinc-50">
@@ -22,7 +30,7 @@ function SectionHeading({ children }: { children: ReactNode }) {
 export default function JobDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
   const { refreshCredits } = useCredits();
   const jobId = params.id as string;
 
@@ -34,19 +42,57 @@ export default function JobDetailPage() {
   // status flip here — track whether we were still "active" to refresh the
   // shared balance exactly on that transition.
   const wasActiveRef = useRef(true);
+  // Bridges the brief window right after triggering post-process where the
+  // stage is still "pending" (not yet picked up by the worker) — without
+  // this, a poll landing in that gap would look inactive and the polling
+  // loop would stop before ever seeing "processing" or the final result.
+  const ppActiveRef = useRef(false);
+  // Detects the processing → completed/failed transition so we can surface
+  // a one-time "it's done" message even if the user isn't watching.
+  const prevPpStatusRef = useRef<string | undefined>(undefined);
   const [ppLoading, setPpLoading] = useState(false);
   const [ppMsg, setPpMsg] = useState<string | null>(null);
+  const [ppMsgKind, setPpMsgKind] = useState<"info" | "success" | "error">("info");
+  const [ppAlpha, setPpAlpha] = useState(0.05);
+  const [ppOffset, setPpOffset] = useState(0.005);
+  const ppParamsInitRef = useRef(false);
+  // Per-stage-index start times for the fake progress trickle (see render).
+  const stageTimersRef = useRef<Record<number, number>>({});
+  // Forces a re-render every second while active so the trickle animates
+  // smoothly instead of only jumping on each 3s poll.
+  const [, setTick] = useState(0);
 
   const fetchJob = useCallback(async () => {
     try {
       const data = await jobsApi.getJob(jobId);
       setJob(data);
       setError(null);
-      const isActive = ACTIVE_STATUSES.includes(data.status);
-      if (wasActiveRef.current && !isActive) {
+      const active = ACTIVE_STATUSES.includes(data.status);
+      if (wasActiveRef.current && !active) {
         refreshCredits();
       }
-      wasActiveRef.current = isActive;
+      wasActiveRef.current = active;
+
+      const ppStatus = data.pipeline_definition?.find((s) => s.type === "post_process")?.status;
+      if (prevPpStatusRef.current === "processing" && ppStatus === "completed") {
+        setPpMsgKind("success");
+        setPpMsg("Post-processing finished — NURBS output updated below.");
+        // Credits are only deducted on a successful run (never on a failed
+        // attempt), so this is the one moment the balance actually changes.
+        refreshCredits();
+      } else if (prevPpStatusRef.current === "processing" && ppStatus === "failed") {
+        setPpMsgKind("error");
+        setPpMsg(
+          data.error_message
+            ? `${data.error_message} (No credits were charged.)`
+            : "Post-processing failed — no credits were charged."
+        );
+      }
+      if (ppStatus === "completed" || ppStatus === "failed") {
+        ppActiveRef.current = false;
+      }
+      prevPpStatusRef.current = ppStatus;
+
       return data;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load job");
@@ -56,24 +102,59 @@ export default function JobDetailPage() {
     }
   }, [jobId, refreshCredits]);
 
+  // Self-scheduling poll (rather than a fixed interval that dies once the
+  // main job "completes") so it naturally resumes when a post-process re-run
+  // is triggered later — see ppActiveRef and handlePostProcess below.
+  const pollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pollCancelledRef = useRef(false);
+
+  const poll = useCallback(() => {
+    if (pollTimeoutRef.current) {
+      clearTimeout(pollTimeoutRef.current);
+      pollTimeoutRef.current = null;
+    }
+    fetchJob().then((data) => {
+      if (pollCancelledRef.current) return;
+      if (data && (isJobActive(data) || ppActiveRef.current)) {
+        pollTimeoutRef.current = setTimeout(poll, 3000);
+      }
+    });
+  }, [fetchJob]);
+
   useEffect(() => {
+    if (authLoading) return; // don't redirect until we actually know
     if (!isAuthenticated) {
       router.push(`/login?redirect=/jobs/${jobId}`);
       return;
     }
-    fetchJob();
 
-    // Poll while active
-    const interval = setInterval(() => {
-      fetchJob().then((data) => {
-        if (data && !ACTIVE_STATUSES.includes(data.status)) {
-          clearInterval(interval);
-        }
-      });
-    }, 3000);
+    pollCancelledRef.current = false;
+    poll();
 
-    return () => clearInterval(interval);
-  }, [jobId, isAuthenticated, router, fetchJob]);
+    return () => {
+      pollCancelledRef.current = true;
+      if (pollTimeoutRef.current) clearTimeout(pollTimeoutRef.current);
+    };
+  }, [jobId, isAuthenticated, authLoading, router, poll]);
+
+  // Pre-fill the alpha/offset controls with the job's last-used values
+  // (from creation, or a prior re-run) once, when they first become available.
+  useEffect(() => {
+    if (ppParamsInitRef.current || !job) return;
+    const a = job.generation_params?.alpha;
+    const o = job.generation_params?.offset;
+    if (typeof a === "number") setPpAlpha(a);
+    if (typeof o === "number") setPpOffset(o);
+    ppParamsInitRef.current = true;
+  }, [job]);
+
+  // Tick once a second while something is running so the (fake) progress
+  // trickle below actually animates, instead of only jumping on each poll.
+  useEffect(() => {
+    if (!job || !(isJobActive(job) || ppActiveRef.current)) return;
+    const id = setInterval(() => setTick((t) => t + 1), 1000);
+    return () => clearInterval(id);
+  }, [job]);
 
   if (isLoading) {
     return (
@@ -103,16 +184,22 @@ export default function JobDetailPage() {
     if (ppLoading) return;
     setPpLoading(true); setPpMsg(null);
     try {
-      const token = localStorage.getItem("access_token");
-      const res = await fetch(`/v1/jobs/${jobId}/post-process`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || `Failed (${res.status})`);
+      await jobsApi.postProcess(jobId, { alpha: ppAlpha, offset: ppOffset });
+      // The main job is likely already "completed", so the mount-level poll
+      // loop may have stopped by now — this flag + restart keeps it going
+      // until we actually observe the new run finish.
+      ppActiveRef.current = true;
+      // Reset any stale trickle timer from a previous run so the progress
+      // bar starts this run's animation from zero instead of resuming near
+      // its old cap.
+      stageTimersRef.current = {};
+      setPpMsgKind("info");
       setPpMsg("Post-processing started!");
-      fetchJob();
-    } catch (err) { setPpMsg(err instanceof Error ? err.message : "Failed"); }
+      poll();
+    } catch (err) {
+      setPpMsgKind("error");
+      setPpMsg(err instanceof Error ? err.message : "Failed");
+    }
     finally { setPpLoading(false); }
   };
 
@@ -123,6 +210,7 @@ export default function JobDetailPage() {
     submitted: "text-blue-400",
     processing: "text-violet-400",
     downloading: "text-cyan-400",
+    post_processing: "text-fuchsia-400",
   };
 
   const statusDot: Record<string, string> = {
@@ -132,17 +220,47 @@ export default function JobDetailPage() {
     submitted: "bg-blue-400",
     processing: "bg-violet-400",
     downloading: "bg-cyan-400",
+    post_processing: "bg-fuchsia-400",
   };
 
-  const activeStatuses = ["pending", "submitted", "processing", "downloading"];
-  const isActive = activeStatuses.includes(job.status);
+  const statusLabel: Record<string, string> = { post_processing: "post-processing" };
+
   const stages = job.pipeline_definition ?? [];
   const ppFailed = stages.some((s) => s.type === "post_process" && s.status === "failed");
   const ppRunning = stages.some((s) => s.type === "post_process" && s.status === "processing");
   const ppDone = stages.some((s) => s.type === "post_process" && s.status === "completed");
+
+  // The post-process step doesn't touch job.status (it's a separate
+  // pipeline stage), so the top badge would otherwise keep saying
+  // "completed" the whole time it's re-running — surface it explicitly.
+  const displayStatus = ppRunning || (ppActiveRef.current && job.status === "completed")
+    ? "post_processing"
+    : job.status;
+  const isActive = isJobActive(job) || ppActiveRef.current;
+
   const completedStages = stages.filter((s) => s.status === "completed").length;
+  const stageSlice = stages.length > 0 ? 100 / stages.length : 100;
+  const baseline = completedStages * stageSlice;
+  // No fine-grained progress signal exists from TokenHub or the CGAL
+  // subprocess, so fake a smooth trickle within the current stage: it
+  // asymptotically approaches (but never quite reaches) the top of that
+  // stage's slice, then the next real poll snaps it to the true baseline.
+  let activeStageIdx = stages.findIndex((s) => s.status === "processing");
+  if (activeStageIdx < 0 && ppActiveRef.current) {
+    activeStageIdx = stages.findIndex((s) => s.type === "post_process");
+  }
+  if (activeStageIdx >= 0 && !stageTimersRef.current[activeStageIdx]) {
+    stageTimersRef.current[activeStageIdx] = Date.now();
+  }
+  const TRICKLE_TIME_CONSTANT_SEC = 45;
+  const elapsedSec = activeStageIdx >= 0
+    ? (Date.now() - stageTimersRef.current[activeStageIdx]) / 1000
+    : 0;
+  const trickle = activeStageIdx >= 0
+    ? stageSlice * 0.92 * (1 - Math.exp(-elapsedSec / TRICKLE_TIME_CONSTANT_SEC))
+    : 0;
   const progressPct = stages.length > 0
-    ? Math.max(8, Math.round((completedStages / stages.length) * 100))
+    ? Math.min(99, Math.max(4, Math.round(baseline + trickle)))
     : 15;
 
   return (
@@ -156,22 +274,20 @@ export default function JobDetailPage() {
           ← Back to gallery
         </button>
         <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-2xl font-semibold text-zinc-50">
-            {typeof job.generation_params?.prompt === "string"
-              ? (job.generation_params.prompt as string).slice(0, 80)
-              : `${job.job_type} job`}
+          <h1 className="min-w-0 flex-1 truncate text-2xl font-semibold text-zinc-50" title={job.title ?? undefined}>
+            {job.title || `${job.job_type} job`}
           </h1>
           <span
             className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ${
-              statusColor[job.status] || "text-zinc-400"
+              statusColor[displayStatus] || "text-zinc-400"
             } bg-zinc-800`}
           >
             <span
-              className={`h-1.5 w-1.5 rounded-full ${statusDot[job.status] || "bg-zinc-500"} ${
+              className={`h-1.5 w-1.5 rounded-full ${statusDot[displayStatus] || "bg-zinc-500"} ${
                 isActive ? "animate-pulse" : ""
               }`}
             />
-            {job.status}
+            {statusLabel[displayStatus] || displayStatus}
           </span>
         </div>
         <p className="mt-2 text-sm text-zinc-500">
@@ -206,7 +322,11 @@ export default function JobDetailPage() {
             <SectionHeading>NURBS Surface</SectionHeading>
             <NurbsUploadViewer
               initialUrl={nurbsJson?.download_url ?? undefined}
-              initialLabel="Generated NURBS"
+              initialLabel={
+                nurbsJson?.label
+                  ? nurbsJson.label.replace("NURBS JSON (Viewer)", "Generated NURBS")
+                  : "Generated NURBS"
+              }
               emptyHint="No NURBS output for this job yet. Upload or drop a NURBS JSON file to preview it here."
             />
           </div>
@@ -290,29 +410,123 @@ export default function JobDetailPage() {
                         : "bg-violet-400 animate-pulse"
                   }`}
                 />
-                {stage.type} — {stage.status}
+                {stage.type === "post_process" ? "post-processing" : stage.type} — {stage.status}
               </div>
             ))}
           </div>
         </div>
       )}
 
-      {/* Post-process retry button */}
-      {job.status === "completed" && obj && !ppRunning && !ppDone && (
+      {/* Post-process trigger / re-run with different parameters */}
+      {job.status === "completed" && obj && !ppRunning && (
         <div className="mb-8 rounded-2xl border border-white/10 bg-zinc-900/40 p-6">
-          <SectionHeading>Post-Processing</SectionHeading>
+          <SectionHeading>{ppDone ? "Regenerate NURBS" : "Post-Processing"}</SectionHeading>
           {ppFailed && (
             <p className="mb-3 text-sm text-red-400">Post-processing failed. You can retry.</p>
           )}
-          {ppMsg && (
-            <p className={`mb-3 text-sm ${ppMsg.includes("started") ? "text-violet-400" : "text-red-400"}`}>{ppMsg}</p>
+          {ppDone && (
+            <p className="mb-3 text-sm text-zinc-500">
+              Already converted to NURBS. Adjust the parameters below and
+              re-run to regenerate from the same source mesh — this replaces
+              the current NURBS output.
+            </p>
           )}
+          {ppMsg && (
+            <p
+              className={`mb-3 text-sm ${
+                ppMsgKind === "success"
+                  ? "text-emerald-400"
+                  : ppMsgKind === "error"
+                    ? "text-red-400"
+                    : "text-violet-400"
+              }`}
+            >
+              {ppMsg}
+            </p>
+          )}
+
+          <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <label className="flex flex-col gap-1">
+              <span className="flex items-center justify-between gap-2 text-xs text-zinc-400">
+                <span>Alpha wrap coarseness</span>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={ppAlpha}
+                  onChange={(e) => {
+                    const v = e.target.value.replace(/[^0-9.]/g, "");
+                    setPpAlpha(v === "" ? 0 : Number(v));
+                  }}
+                  onBlur={(e) => {
+                    const v = Number(e.target.value) || 0.05;
+                    setPpAlpha(Math.min(0.2, Math.max(0.01, v)));
+                  }}
+                  className="w-20 rounded-md border border-white/15 bg-zinc-900 px-2 py-1 text-right text-zinc-50 focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-500/20"
+                />
+              </span>
+              <input
+                type="range"
+                min={0.01}
+                max={0.2}
+                step={0.01}
+                value={ppAlpha}
+                onChange={(e) => setPpAlpha(Number(e.target.value))}
+                className="accent-violet-500"
+              />
+              <span className="text-[11px] text-zinc-500">
+                How tightly the wrap hugs the mesh — lower preserves more
+                detail but is more likely to fail on complex meshes; higher
+                is coarser but more robust. 0.01–0.2 (default 0.05).
+              </span>
+            </label>
+
+            <label className="flex flex-col gap-1">
+              <span className="flex items-center justify-between gap-2 text-xs text-zinc-400">
+                <span>Offset</span>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={ppOffset}
+                  onChange={(e) => {
+                    const v = e.target.value.replace(/[^0-9.]/g, "");
+                    setPpOffset(v === "" ? 0 : Number(v));
+                  }}
+                  onBlur={(e) => {
+                    const v = Number(e.target.value) || 0.005;
+                    setPpOffset(Math.min(0.02, Math.max(0.001, v)));
+                  }}
+                  className="w-20 rounded-md border border-white/15 bg-zinc-900 px-2 py-1 text-right text-zinc-50 focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-500/20"
+                />
+              </span>
+              <input
+                type="range"
+                min={0.001}
+                max={0.02}
+                step={0.001}
+                value={ppOffset}
+                onChange={(e) => setPpOffset(Number(e.target.value))}
+                className="accent-violet-500"
+              />
+              <span className="text-[11px] text-zinc-500">
+                Buffer distance added around the mesh during wrapping —
+                helps bridge small holes/gaps; larger values thicken thin
+                features. 0.001–0.02 (default 0.005).
+              </span>
+            </label>
+          </div>
+
           <button
             onClick={handlePostProcess}
             disabled={ppLoading}
             className="rounded-full bg-violet-500 px-6 py-2 text-sm font-semibold text-white transition-colors hover:bg-violet-400 disabled:opacity-50"
           >
-            {ppLoading ? "Starting…" : ppFailed ? "Retry Post-Process" : "Post Process (Alpha Wrap + Mesh2NURBS)"}
+            {ppLoading
+              ? "Starting…"
+              : ppDone
+                ? "Regenerate NURBS"
+                : ppFailed
+                  ? "Retry Post-Process"
+                  : "Post Process (Alpha Wrap + Mesh2NURBS)"}
           </button>
         </div>
       )}

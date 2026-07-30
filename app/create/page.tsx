@@ -12,6 +12,9 @@ type Params = {
   generate_type: "Normal" | "LowPoly" | "Geometry" | "Sketch";
   enable_pbr: boolean;
   polygon_type: "triangle" | "quadrilateral";
+  alpha: number;
+  offset: number;
+  auto_post_process: boolean;
 };
 
 const DEFAULT_PARAMS: Params = {
@@ -19,6 +22,9 @@ const DEFAULT_PARAMS: Params = {
   generate_type: "Normal",
   enable_pbr: false,
   polygon_type: "triangle",
+  alpha: 0.05,
+  offset: 0.005,
+  auto_post_process: true,
 };
 
 export default function CreatePage() {
@@ -70,6 +76,9 @@ export default function CreatePage() {
           ...(params.face_count && { face_count: params.face_count }),
           ...(params.generate_type && { generate_type: params.generate_type }),
           ...(params.polygon_type && { polygon_type: params.polygon_type }),
+          alpha: params.alpha,
+          offset: params.offset,
+          auto_post_process: params.auto_post_process,
         });
       } else {
         job = await jobsApi.createImageTo3D(imageFile!, {
@@ -78,6 +87,9 @@ export default function CreatePage() {
           face_count: params.face_count,
           generate_type: params.generate_type,
           polygon_type: params.polygon_type,
+          alpha: params.alpha,
+          offset: params.offset,
+          auto_post_process: params.auto_post_process,
         });
       }
 
@@ -188,6 +200,43 @@ export default function CreatePage() {
           </div>
         )}
 
+        {/* Face count — visible to everyone, not tucked behind Advanced */}
+        <label className="flex flex-col gap-1 rounded-xl border border-white/10 bg-zinc-900/50 p-4">
+          <span className="flex items-center justify-between gap-2 text-xs text-zinc-400">
+            <span>Face count</span>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={params.face_count || ""}
+              onChange={(e) => {
+                const digits = e.target.value.replace(/[^0-9]/g, "");
+                setParams({ ...params, face_count: digits === "" ? 0 : Number(digits) });
+              }}
+              onBlur={(e) => {
+                const v = Number(e.target.value.replace(/[^0-9]/g, "")) || 3000;
+                setParams({ ...params, face_count: Math.min(30000, Math.max(3000, v)) });
+              }}
+              className="w-24 rounded-md border border-white/15 bg-zinc-900 px-2 py-1 text-right text-zinc-50 focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-500/20"
+            />
+          </span>
+          <input
+            type="range"
+            min={3000}
+            max={30000}
+            step={1000}
+            value={params.face_count}
+            onChange={(e) =>
+              setParams({ ...params, face_count: Number(e.target.value) })
+            }
+            className="accent-violet-500"
+          />
+          <span className="text-[11px] text-zinc-500">
+            Roughly how many triangles the final mesh has — more faces add
+            detail but increase file size and load time. Type a value or
+            drag the slider (3,000–30,000).
+          </span>
+        </label>
+
         {/* Parameter panel */}
         <button
           type="button"
@@ -199,40 +248,6 @@ export default function CreatePage() {
 
         {showAdvanced && (
           <div className="grid grid-cols-1 gap-4 rounded-xl border border-white/10 bg-zinc-900/50 p-4 sm:grid-cols-2">
-            <label className="flex flex-col gap-1">
-              <span className="flex items-center justify-between gap-2 text-xs text-zinc-400">
-                <span>Face count</span>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  value={params.face_count || ""}
-                  onChange={(e) => {
-                    const digits = e.target.value.replace(/[^0-9]/g, "");
-                    setParams({ ...params, face_count: digits === "" ? 0 : Number(digits) });
-                  }}
-                  onBlur={(e) => {
-                    const v = Number(e.target.value.replace(/[^0-9]/g, "")) || 3000;
-                    setParams({ ...params, face_count: Math.min(30000, Math.max(3000, v)) });
-                  }}
-                  className="w-24 rounded-md border border-white/15 bg-zinc-900 px-2 py-1 text-right text-zinc-50 focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-500/20"
-                />
-              </span>
-              <input
-                type="range"
-                min={3000}
-                max={30000}
-                step={1000}
-                value={params.face_count}
-                onChange={(e) =>
-                  setParams({ ...params, face_count: Number(e.target.value) })
-                }
-                className="accent-violet-500"
-              />
-              <span className="text-[11px] text-zinc-500">
-                Type an exact value or drag the slider (3,000–30,000).
-              </span>
-            </label>
-
             <label className="flex flex-col gap-1">
               <span className="text-xs text-zinc-400">Generate type</span>
               <select
@@ -251,6 +266,11 @@ export default function CreatePage() {
                   </option>
                 ))}
               </select>
+              <span className="text-[11px] text-zinc-500">
+                Overall generation mode — changes mesh style and which
+                other options below apply (e.g. Polygon type only applies
+                to LowPoly).
+              </span>
             </label>
 
             <label className="flex items-center gap-2 sm:col-span-2">
@@ -262,7 +282,13 @@ export default function CreatePage() {
                 }
                 className="accent-violet-500"
               />
-              <span className="text-xs text-zinc-400">Enable PBR materials</span>
+              <span className="text-xs text-zinc-400">
+                Enable PBR materials
+                <span className="ml-1 text-zinc-500">
+                  — generates physically-based texture maps (color,
+                  roughness, metallic) for more realistic shading.
+                </span>
+              </span>
             </label>
 
             {params.generate_type === "LowPoly" && (
@@ -281,8 +307,104 @@ export default function CreatePage() {
                   <option value="triangle">Triangle</option>
                   <option value="quadrilateral">Quadrilateral</option>
                 </select>
+                <span className="text-[11px] text-zinc-500">
+                  Face shape used for the low-poly mesh — triangles suit
+                  most viewers and engines, quads suit box-modeling and
+                  subdivision workflows.
+                </span>
               </label>
             )}
+
+            <div className="flex flex-col gap-4 sm:col-span-2">
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={params.auto_post_process}
+                  onChange={(e) =>
+                    setParams({ ...params, auto_post_process: e.target.checked })
+                  }
+                  className="accent-violet-500"
+                />
+                <span className="text-xs text-zinc-400">
+                  Automatically run post-processing (NURBS conversion) when generation finishes
+                </span>
+              </label>
+
+              <p className="text-xs text-zinc-500">
+                The two sliders below control that post-processing step (alpha
+                wrap), which converts the mesh into NURBS surfaces. If
+                auto-run is off, you can still trigger it manually later from
+                the model page.
+              </p>
+
+              <label className="flex flex-col gap-1">
+                <span className="flex items-center justify-between gap-2 text-xs text-zinc-400">
+                  <span>Alpha wrap coarseness</span>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={params.alpha}
+                    onChange={(e) => {
+                      const v = e.target.value.replace(/[^0-9.]/g, "");
+                      setParams({ ...params, alpha: v === "" ? 0 : Number(v) });
+                    }}
+                    onBlur={(e) => {
+                      const v = Number(e.target.value) || 0.05;
+                      setParams({ ...params, alpha: Math.min(0.2, Math.max(0.01, v)) });
+                    }}
+                    className="w-20 rounded-md border border-white/15 bg-zinc-900 px-2 py-1 text-right text-zinc-50 focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-500/20"
+                  />
+                </span>
+                <input
+                  type="range"
+                  min={0.01}
+                  max={0.2}
+                  step={0.01}
+                  value={params.alpha}
+                  onChange={(e) => setParams({ ...params, alpha: Number(e.target.value) })}
+                  className="accent-violet-500"
+                />
+                <span className="text-[11px] text-zinc-500">
+                  How tightly the wrap hugs the mesh — lower preserves more
+                  detail but is more likely to fail on complex meshes; higher
+                  is coarser but more robust. 0.01–0.2 (default 0.05).
+                </span>
+              </label>
+
+              <label className="flex flex-col gap-1">
+                <span className="flex items-center justify-between gap-2 text-xs text-zinc-400">
+                  <span>Offset</span>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={params.offset}
+                    onChange={(e) => {
+                      const v = e.target.value.replace(/[^0-9.]/g, "");
+                      setParams({ ...params, offset: v === "" ? 0 : Number(v) });
+                    }}
+                    onBlur={(e) => {
+                      const v = Number(e.target.value) || 0.005;
+                      setParams({ ...params, offset: Math.min(0.02, Math.max(0.001, v)) });
+                    }}
+                    className="w-20 rounded-md border border-white/15 bg-zinc-900 px-2 py-1 text-right text-zinc-50 focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-500/20"
+                  />
+                </span>
+                <input
+                  type="range"
+                  min={0.001}
+                  max={0.02}
+                  step={0.001}
+                  value={params.offset}
+                  onChange={(e) => setParams({ ...params, offset: Number(e.target.value) })}
+                  className="accent-violet-500"
+                />
+                <span className="text-[11px] text-zinc-500">
+                  Buffer distance added around the mesh during wrapping —
+                  helps bridge small holes/gaps; larger values thicken thin
+                  features. 0.001–0.02 (default 0.005).
+                </span>
+              </label>
+            </div>
           </div>
         )}
 

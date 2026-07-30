@@ -17,6 +17,7 @@ export default function Home() {
 
   useEffect(() => {
     if (!isAuthenticated) { setDashboardLoading(false); return; }
+    setDashboardLoading(true);
     async function load() {
       try {
         const j = await jobsApi.listJobs({ per_page: 6 });
@@ -27,8 +28,19 @@ export default function Home() {
     load();
   }, [isAuthenticated]);
 
+  // Auth status (and, if signed in, the dashboard data) is still resolving —
+  // hold on a neutral loading state rather than guessing and flashing the
+  // wrong page for whichever way the check turns out.
+  if (authLoading || (isAuthenticated && dashboardLoading)) {
+    return (
+      <div className="flex flex-1 items-center justify-center py-32">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
+      </div>
+    );
+  }
+
   // Authenticated: show dashboard
-  if (isAuthenticated && !authLoading && !dashboardLoading) {
+  if (isAuthenticated) {
     return (
       <>
         <section className="relative border-b border-white/10 px-6 py-10">
