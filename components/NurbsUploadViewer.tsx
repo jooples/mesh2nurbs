@@ -144,7 +144,8 @@ export default function NurbsUploadViewer({
       onDragLeave={handleDragLeave}
       onDragOver={handleDragOver}
       onDrop={handleDrop}
-      className={`relative w-full rounded-2xl transition-shadow ${
+      onDragStart={(e) => e.preventDefault()}
+      className={`relative w-full select-none rounded-2xl transition-shadow ${
         isDragging ? "ring-2 ring-violet-400" : ""
       } ${className ?? ""}`}
     >
@@ -164,8 +165,14 @@ export default function NurbsUploadViewer({
         </div>
       )}
 
+      {/* Both controls release pointer capture on press so a rotate-drag
+          starting on them (they sit over the canvas's drag zone) hands off
+          to OrbitControls instead of getting locked to this element. */}
       <div className="pointer-events-auto absolute left-3 top-3 flex gap-2 text-xs">
-        <label className="cursor-pointer rounded-full border border-white/10 bg-black/40 px-3 py-1 text-zinc-300 backdrop-blur transition-colors hover:text-white">
+        <label
+          onPointerDown={(e) => e.currentTarget.releasePointerCapture(e.pointerId)}
+          className="cursor-pointer rounded-full border border-white/10 bg-black/40 px-3 py-1 text-zinc-300 backdrop-blur transition-colors hover:text-white"
+        >
           Upload
           <input
             ref={fileInputRef}
@@ -178,6 +185,7 @@ export default function NurbsUploadViewer({
         {canReset && (
           <button
             type="button"
+            onPointerDown={(e) => e.currentTarget.releasePointerCapture(e.pointerId)}
             onClick={loadInitial}
             className="rounded-full border border-white/10 bg-black/40 px-3 py-1 text-zinc-300 backdrop-blur transition-colors hover:text-white"
           >

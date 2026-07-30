@@ -35,17 +35,17 @@ export default function AdminUserList() {
   };
 
   return (
-    <div className="mx-auto max-w-6xl px-6 py-16">
+    <div className="mx-auto max-w-6xl px-6 py-10">
       {/* Header */}
       <div className="mb-8 flex items-center justify-between">
         <div>
           <Link
             href="/admin"
-            className="text-sm text-zinc-400 transition-colors hover:text-zinc-200"
+            className="text-sm text-stone-600 dark:text-zinc-400 transition-colors hover:text-stone-900 dark:hover:text-zinc-200"
           >
             ← Dashboard
           </Link>
-          <h1 className="mt-1 text-3xl font-semibold text-zinc-50">
+          <h1 className="mt-1 text-3xl font-semibold text-stone-900 dark:text-zinc-50">
             User Management
           </h1>
         </div>
@@ -58,7 +58,7 @@ export default function AdminUserList() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search by email or display name..."
-          className="flex-1 rounded-xl border border-white/15 bg-zinc-900 px-4 py-3 text-sm text-zinc-50 placeholder:text-zinc-500 focus:border-violet-400 focus:outline-none"
+          className="flex-1 rounded-xl border border-stone-300 bg-white px-4 py-3 text-sm text-stone-900 placeholder:text-stone-400 focus:border-violet-400 focus:outline-none dark:border-white/15 dark:bg-zinc-900 dark:text-zinc-50 dark:placeholder:text-zinc-500"
         />
         <button
           type="submit"
@@ -70,31 +70,31 @@ export default function AdminUserList() {
 
       {/* Error */}
       {error && (
-        <div className="mb-6 rounded-lg border border-red-500/30 bg-red-950/30 p-4 text-center text-sm text-red-400">
+        <div className="mb-6 rounded-lg border border-red-500/30 bg-red-50 p-4 text-center text-sm text-red-700 dark:bg-red-950/30 dark:text-red-400">
           {error}
         </div>
       )}
 
       {/* Table */}
-      <div className="overflow-x-auto rounded-xl border border-white/10">
+      <div className="overflow-x-auto rounded-xl border border-stone-200 dark:border-white/10">
         <table className="w-full text-left text-sm">
-          <thead className="border-b border-white/10 bg-zinc-900/50">
+          <thead className="border-b border-stone-200 bg-stone-100 dark:border-white/10 dark:bg-zinc-900/50">
             <tr>
-              <th className="px-4 py-3 font-medium text-zinc-300">Email</th>
-              <th className="px-4 py-3 font-medium text-zinc-300">Name</th>
-              <th className="px-4 py-3 font-medium text-zinc-300">Role</th>
-              <th className="px-4 py-3 text-right font-medium text-zinc-300">Credits</th>
-              <th className="px-4 py-3 text-right font-medium text-zinc-300">Jobs</th>
-              <th className="px-4 py-3 text-right font-medium text-zinc-300">Joined</th>
+              <th className="px-4 py-3 font-medium text-stone-700 dark:text-zinc-300">Email</th>
+              <th className="px-4 py-3 font-medium text-stone-700 dark:text-zinc-300">Name</th>
+              <th className="px-4 py-3 font-medium text-stone-700 dark:text-zinc-300">Role</th>
+              <th className="px-4 py-3 text-right font-medium text-stone-700 dark:text-zinc-300">Credits</th>
+              <th className="px-4 py-3 text-right font-medium text-stone-700 dark:text-zinc-300">Jobs</th>
+              <th className="px-4 py-3 text-right font-medium text-stone-700 dark:text-zinc-300">Joined</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-white/5">
+          <tbody className="divide-y divide-stone-200 dark:divide-white/5">
             {loading ? (
               [...Array(5)].map((_, i) => (
                 <tr key={i}>
                   {[...Array(6)].map((_, j) => (
                     <td key={j} className="px-4 py-3">
-                      <div className="h-4 w-24 animate-pulse rounded bg-zinc-800" />
+                      <div className="h-4 w-24 animate-pulse rounded bg-stone-200 dark:bg-zinc-800" />
                     </td>
                   ))}
                 </tr>
@@ -103,41 +103,41 @@ export default function AdminUserList() {
               data.items.map((u) => (
                 <tr
                   key={u.id}
-                  className="transition-colors hover:bg-zinc-900/50"
+                  className="transition-colors hover:bg-stone-100 dark:hover:bg-zinc-900/50"
                 >
                   <td className="px-4 py-3">
                     <Link
                       href={`/admin/users/${u.id}`}
-                      className="font-medium text-violet-400 transition-colors hover:text-violet-300"
+                      className="font-medium text-violet-600 transition-colors hover:text-violet-700 dark:text-violet-400 dark:hover:text-violet-300"
                     >
                       {u.email}
                     </Link>
                   </td>
-                  <td className="px-4 py-3 text-zinc-300">
+                  <td className="px-4 py-3 text-stone-700 dark:text-zinc-300">
                     {u.display_name || "—"}
                   </td>
                   <td className="px-4 py-3">
                     {u.is_admin ? (
-                      <span className="rounded-full bg-violet-500/10 px-2 py-0.5 text-xs text-violet-300">
+                      <span className="rounded-full bg-violet-100 px-2 py-0.5 text-xs text-violet-700 dark:bg-violet-500/10 dark:text-violet-300">
                         Admin
                       </span>
                     ) : (
-                      <span className="text-zinc-500">User</span>
+                      <span className="text-stone-500">User</span>
                     )}
                   </td>
                   <td className="px-4 py-3 text-right">
                     <span
                       className={`font-mono text-sm ${
-                        u.credits_balance < 20 ? "text-red-400" : "text-zinc-200"
+                        u.credits_balance < 20 ? "text-red-700 dark:text-red-400" : "text-stone-800 dark:text-zinc-200"
                       }`}
                     >
                       {u.credits_balance}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-right text-zinc-400">
+                  <td className="px-4 py-3 text-right text-stone-600 dark:text-zinc-400">
                     {u.total_jobs}
                   </td>
-                  <td className="px-4 py-3 text-right text-zinc-500">
+                  <td className="px-4 py-3 text-right text-stone-500">
                     {u.created_at
                       ? new Date(u.created_at).toLocaleDateString()
                       : "—"}
@@ -148,7 +148,7 @@ export default function AdminUserList() {
               <tr>
                 <td
                   colSpan={6}
-                  className="px-4 py-12 text-center text-zinc-500"
+                  className="px-4 py-12 text-center text-stone-500"
                 >
                   No users found
                 </td>
@@ -161,7 +161,7 @@ export default function AdminUserList() {
       {/* Pagination */}
       {data && data.total_pages > 1 && (
         <div className="mt-6 flex items-center justify-between text-sm">
-          <p className="text-zinc-400">
+          <p className="text-stone-600 dark:text-zinc-400">
             Showing {(page - 1) * 20 + 1}–{Math.min(page * 20, data.total)} of{" "}
             {data.total} users
           </p>
@@ -169,14 +169,14 @@ export default function AdminUserList() {
             <button
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               disabled={page <= 1}
-              className="rounded-full border border-white/15 px-4 py-2 text-zinc-300 transition-colors hover:bg-white/10 disabled:opacity-30"
+              className="rounded-full border border-stone-300 px-4 py-2 text-stone-700 transition-colors hover:bg-stone-100 disabled:opacity-30 dark:border-white/15 dark:text-zinc-300 dark:hover:bg-white/10"
             >
               Previous
             </button>
             <button
               onClick={() => setPage((p) => Math.min(data.total_pages, p + 1))}
               disabled={page >= data.total_pages}
-              className="rounded-full border border-white/15 px-4 py-2 text-zinc-300 transition-colors hover:bg-white/10 disabled:opacity-30"
+              className="rounded-full border border-stone-300 px-4 py-2 text-stone-700 transition-colors hover:bg-stone-100 disabled:opacity-30 dark:border-white/15 dark:text-zinc-300 dark:hover:bg-white/10"
             >
               Next
             </button>

@@ -1,5 +1,11 @@
 @import "tailwindcss";
 
+/* Class-based dark mode (Tailwind v4): `dark:` utilities apply when the
+   root has `.dark`, toggled by ThemeProvider. Default (no class) is light;
+   ThemeProvider applies `.dark` before paint so the dark brand look — the
+   actual default for most visitors — never flashes wrong. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
   --background: #09090b;
   --foreground: #ededed;
@@ -20,11 +26,13 @@ body {
   font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
 }
 
-/* Night-city backdrop: soft neon glows bleeding in from the edges, no
-   pattern or imagery. Fixed so it holds still while the page scrolls, and
-   sits behind content but above the body background. Fixed positioning
-   also keeps it out of body's flex flow. A slow, subtle "breathing" drift
-   (the site's one moving accent) keeps it feeling alive without distraction. */
+/* Genesis backdrop: dark mode is the cosmic "void" (violet/cyan/fuchsia neon
+   glows bleeding in from the edges); light mode is the "dawn" — the same
+   composition warmed toward rose/gold, read as haze rather than neon on
+   white. Fixed so it holds still while the page scrolls, and sits behind
+   content but above the body background. Fixed positioning also keeps it
+   out of body's flex flow. A slow, subtle "breathing" drift (the site's one
+   moving accent) keeps it feeling alive without distraction. */
 body::after {
   content: "";
   position: fixed;
@@ -32,11 +40,18 @@ body::after {
   z-index: -1;
   pointer-events: none;
   background:
+    radial-gradient(45% 40% at 12% 0%, rgba(190, 18, 60, 0.05), transparent 70%),
+    radial-gradient(40% 35% at 88% 6%, rgba(34, 211, 238, 0.04), transparent 70%),
+    radial-gradient(55% 45% at 50% 100%, rgba(124, 110, 242, 0.04), transparent 70%);
+  transform-origin: center;
+  animation: ambientDrift 16s ease-in-out infinite;
+}
+
+.dark body::after {
+  background:
     radial-gradient(45% 40% at 12% 0%, rgba(124, 110, 242, 0.13), transparent 70%),
     radial-gradient(40% 35% at 88% 6%, rgba(34, 211, 238, 0.07), transparent 70%),
     radial-gradient(55% 45% at 50% 100%, rgba(217, 70, 239, 0.05), transparent 70%);
-  transform-origin: center;
-  animation: ambientDrift 16s ease-in-out infinite;
 }
 
 @keyframes ambientDrift {
@@ -49,13 +64,41 @@ body::after {
   body::after { animation: none; }
 }
 
+/* Continuous horizontal ticker — content is duplicated by the caller so the
+   -50% translate loops seamlessly with no visible seam or reset jump. */
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+.animate-marquee {
+  animation: marquee 32s linear infinite;
+}
+
+.animate-marquee:hover {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-marquee { animation: none; }
+}
+
 ::selection {
+  background: rgba(190, 18, 60, 0.18);
+  color: #292524;
+}
+
+.dark ::selection {
   background: rgba(124, 110, 242, 0.35);
   color: #fff;
 }
 
 * {
   scrollbar-width: thin;
+  scrollbar-color: #d6d3d1 transparent;
+}
+
+.dark * {
   scrollbar-color: #3f3f46 transparent;
 }
 
@@ -69,13 +112,21 @@ body::after {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #303036;
+  background: #d6d3d1;
   background-clip: content-box;
   border: 2px solid transparent;
   border-radius: 9999px;
 }
 
+.dark ::-webkit-scrollbar-thumb {
+  background: #303036;
+}
+
 ::-webkit-scrollbar-thumb:hover {
-  background: #4b4b55;
+  background: #a8a29e;
   background-clip: content-box;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #4b4b55;
 }

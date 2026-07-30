@@ -3,12 +3,12 @@ import { mockTeam } from "@/lib/mockTeam";
 
 export default function AboutPage() {
   return (
-    <section className="mx-auto w-full max-w-6xl flex-1 px-6 py-16">
+    <section className="mx-auto w-full max-w-6xl flex-1 px-6 py-10">
       <div className="mb-12 text-center">
-        <h1 className="bg-gradient-to-br from-white to-violet-200 bg-clip-text text-3xl font-semibold text-transparent sm:text-4xl">
+        <h1 className="text-3xl font-semibold text-stone-900 sm:text-4xl dark:bg-gradient-to-br dark:from-white dark:to-violet-200 dark:bg-clip-text dark:text-transparent">
           About us
         </h1>
-        <p className="mx-auto mt-3 max-w-2xl text-zinc-400">
+        <p className="mx-auto mt-3 max-w-2xl text-stone-600 dark:text-zinc-400">
           Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do
           eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim
           ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut
@@ -18,11 +18,11 @@ export default function AboutPage() {
         </p>
       </div>
 
-      <h2 className="mb-8 flex items-center justify-center gap-2.5 text-center text-xl font-semibold text-zinc-50">
+      <h2 className="mb-8 flex items-center justify-center gap-2.5 text-center text-xl font-semibold text-stone-900 dark:text-zinc-50">
         <span className="h-1.5 w-1.5 rounded-full bg-cyan-400" />
         Our team
       </h2>
-      <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
         {mockTeam.map((member) => (
           <TeamCard key={member.id} member={member} />
         ))}

@@ -121,10 +121,15 @@ export default function MeshViewer({
   const [hovered, setHovered] = useState(false);
 
   return (
+    // select-none + dragstart guard: the badge/button text overlaid on the
+    // canvas is natively selectable, so a click-drag meant to orbit the
+    // camera (especially on trackpads) can instead trigger the browser's
+    // native text-selection drag and never reach OrbitControls.
     <div
       onPointerEnter={() => setHovered(true)}
       onPointerLeave={() => setHovered(false)}
-      className={`group relative aspect-square w-full overflow-hidden rounded-2xl border border-white/10 bg-zinc-900 ${modelUrl ? "hover:cursor-grab active:cursor-grabbing" : ""} ${className ?? ""}`}
+      onDragStart={(e) => e.preventDefault()}
+      className={`group relative aspect-square w-full select-none overflow-hidden rounded-2xl border border-stone-300 bg-stone-200 dark:border-white/10 dark:bg-zinc-900 ${modelUrl ? "hover:cursor-grab active:cursor-grabbing" : ""} ${className ?? ""}`}
     >
       <Canvas camera={{ position: [2.5, 2, 2.5], fov: 45 }}>
         <ambientLight intensity={brightLighting ? 3.5 : 0.6} />
@@ -163,9 +168,16 @@ export default function MeshViewer({
         </div>
       )}
 
-      {/* Lighting toggle */}
+      {/* Lighting toggle — releases pointer capture immediately on press so a
+          rotate-drag that starts on this button (it sits right over the
+          canvas's drag zone) hands off to OrbitControls instead of the
+          browser locking the whole gesture to this element; a plain tap
+          still fires onClick normally. */}
       <button
         type="button"
+        onPointerDown={(e) => {
+          e.currentTarget.releasePointerCapture(e.pointerId);
+        }}
         onClick={(e) => {
           e.preventDefault();
           e.stopPropagation();

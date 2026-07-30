@@ -158,8 +158,13 @@ export default function NurbsViewer({ data, label, className }: NurbsViewerProps
   const [brightLighting, setBrightLighting] = useState(false);
 
   return (
+    // select-none + dragstart guard: the control-toggle button text overlaid
+    // on the canvas is natively selectable, so a click-drag meant to orbit
+    // the camera can instead trigger the browser's native text-selection
+    // drag and never reach OrbitControls.
     <div
-      className={`relative aspect-square w-full overflow-hidden rounded-2xl border border-white/10 bg-zinc-900 ${className ?? ""}`}
+      onDragStart={(e) => e.preventDefault()}
+      className={`relative aspect-square w-full select-none overflow-hidden rounded-2xl border border-white/10 bg-zinc-900 ${className ?? ""}`}
     >
       <Canvas camera={{ position: [2.5, 2, 2.5], fov: 45 }}>
         <ambientLight intensity={brightLighting ? 2 : 0.6} />
@@ -167,9 +172,14 @@ export default function NurbsViewer({ data, label, className }: NurbsViewerProps
         <NurbsPatches data={data} showControlPoints={showControlPoints} showControlNet={showControlNet} />
         <OrbitControls enablePan={false} />
       </Canvas>
+      {/* Each button releases pointer capture on press so a rotate-drag
+          starting on one of these (they sit right over the canvas's drag
+          zone) hands off to OrbitControls instead of the gesture getting
+          locked to the button; a plain tap still fires onClick normally. */}
       <div className="pointer-events-auto absolute right-3 top-3 flex gap-2 text-xs">
         <button
           type="button"
+          onPointerDown={(e) => e.currentTarget.releasePointerCapture(e.pointerId)}
           onClick={() => setBrightLighting((v) => !v)}
           className={`rounded-full border px-3 py-1 backdrop-blur ${
             brightLighting
@@ -181,6 +191,7 @@ export default function NurbsViewer({ data, label, className }: NurbsViewerProps
         </button>
         <button
           type="button"
+          onPointerDown={(e) => e.currentTarget.releasePointerCapture(e.pointerId)}
           onClick={() => setShowControlPoints((v) => !v)}
           className={`rounded-full border px-3 py-1 backdrop-blur ${
             showControlPoints
@@ -192,6 +203,7 @@ export default function NurbsViewer({ data, label, className }: NurbsViewerProps
         </button>
         <button
           type="button"
+          onPointerDown={(e) => e.currentTarget.releasePointerCapture(e.pointerId)}
           onClick={() => setShowControlNet((v) => !v)}
           className={`rounded-full border px-3 py-1 backdrop-blur ${
             showControlNet

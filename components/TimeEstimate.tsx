@@ -59,17 +59,17 @@ export default function TimeEstimate({ jobType, faceCount, alpha, offset, mode =
 
   if (parts.length === 0) {
     return (
-      <p className={`text-xs text-zinc-500 ${className ?? ""}`}>
+      <p className={`text-xs text-stone-500 ${className ?? ""}`}>
         Not enough historical data yet to estimate timing.
       </p>
     );
   }
 
   return (
-    <p className={`text-xs text-zinc-500 ${className ?? ""}`}>
+    <p className={`text-xs text-stone-500 ${className ?? ""}`}>
       Estimated time: {parts.join(" + ")}
       {highFailure && (
-        <span className="ml-1 text-amber-400">
+        <span className="ml-1 text-amber-700 dark:text-amber-400">
           — similar params have failed {Math.round((estimate.post_process_failure_rate ?? 0) * 100)}% of the time recently
         </span>
       )}

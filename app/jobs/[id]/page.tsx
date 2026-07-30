@@ -21,7 +21,7 @@ function isJobActive(data: JobDetail): boolean {
 
 function SectionHeading({ children }: { children: ReactNode }) {
   return (
-    <h2 className="mb-4 flex items-center gap-2 text-lg font-medium text-zinc-50">
+    <h2 className="mb-4 flex items-center gap-2 text-lg font-medium text-stone-900 dark:text-zinc-50">
       <span className="h-4 w-1 rounded-full bg-violet-500" />
       {children}
     </h2>
@@ -58,6 +58,7 @@ export default function JobDetailPage() {
   const [ppOffset, setPpOffset] = useState(0.005);
   const ppParamsInitRef = useRef(false);
   const [publishLoading, setPublishLoading] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   // Kept entirely separate from ppMsg/ppMsgKind (the post-process/regenerate
   // NURBS status area) so a publish error never shows up under the wrong
   // section — see the bug this was split out to fix.
@@ -169,7 +170,7 @@ export default function JobDetailPage() {
 
   if (isLoading) {
     return (
-      <section className="mx-auto flex w-full max-w-4xl flex-1 items-center justify-center px-6 py-16">
+      <section className="mx-auto flex w-full max-w-4xl flex-1 items-center justify-center px-6 py-10">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
       </section>
     );
@@ -177,8 +178,8 @@ export default function JobDetailPage() {
 
   if (error || !job) {
     return (
-      <section className="mx-auto w-full max-w-4xl flex-1 px-6 py-16 text-center">
-        <p className="text-red-400">{error || "Job not found"}</p>
+      <section className="mx-auto w-full max-w-4xl flex-1 px-6 py-10 text-center">
+        <p className="text-red-600 dark:text-red-400">{error || "Job not found"}</p>
       </section>
     );
   }
@@ -250,6 +251,19 @@ export default function JobDetailPage() {
     }
   };
 
+  const handleDelete = async () => {
+    if (!job || deleting) return;
+    if (!confirm(`Delete "${job.title || job.job_type}"? This can't be undone.`)) return;
+    setDeleting(true);
+    try {
+      await jobsApi.deleteJob(jobId);
+      router.push("/gallery");
+    } catch (err) {
+      setDeleting(false);
+      alert(err instanceof Error ? err.message : "Failed to delete");
+    }
+  };
+
   const handleUnpublish = async () => {
     if (!job || publishLoading) return;
     setPublishLoading(true);
@@ -269,13 +283,13 @@ export default function JobDetailPage() {
   };
 
   const statusColor: Record<string, string> = {
-    completed: "text-emerald-400",
-    failed: "text-red-400",
-    pending: "text-amber-400",
-    submitted: "text-blue-400",
-    processing: "text-violet-400",
-    downloading: "text-cyan-400",
-    post_processing: "text-fuchsia-400",
+    completed: "text-emerald-700 dark:text-emerald-400",
+    failed: "text-red-700 dark:text-red-400",
+    pending: "text-amber-700 dark:text-amber-400",
+    submitted: "text-blue-700 dark:text-blue-400",
+    processing: "text-violet-700 dark:text-violet-400",
+    downloading: "text-cyan-700 dark:text-cyan-400",
+    post_processing: "text-fuchsia-700 dark:text-fuchsia-400",
   };
 
   const statusDot: Record<string, string> = {
@@ -329,26 +343,26 @@ export default function JobDetailPage() {
     : 15;
 
   return (
-    <section className="mx-auto w-full max-w-4xl flex-1 px-6 py-16">
+    <section className="mx-auto w-full max-w-4xl flex-1 px-6 py-10">
       {/* Header */}
       <div className="mb-8">
         <button
           onClick={() => router.push("/gallery")}
-          className="mb-4 text-sm text-zinc-500 transition-colors hover:text-zinc-300"
+          className="mb-4 text-sm text-stone-500 transition-colors hover:text-stone-900 dark:hover:text-zinc-300"
         >
           ← Back to gallery
         </button>
         <div className="flex flex-wrap items-center gap-3">
-          <h1 className="min-w-0 flex-1 truncate text-2xl font-semibold text-zinc-50" title={job.title ?? undefined}>
+          <h1 className="min-w-0 flex-1 truncate text-2xl font-semibold text-stone-900 dark:text-zinc-50" title={job.title ?? undefined}>
             {job.title || `${job.job_type} job`}
           </h1>
           <span
             className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ${
-              statusColor[displayStatus] || "text-zinc-400"
-            } bg-zinc-800`}
+              statusColor[displayStatus] || "text-stone-600 dark:text-zinc-400"
+            } bg-stone-200 dark:bg-zinc-800`}
           >
             <span
-              className={`h-1.5 w-1.5 rounded-full ${statusDot[displayStatus] || "bg-zinc-500"} ${
+              className={`h-1.5 w-1.5 rounded-full ${statusDot[displayStatus] || "bg-stone-500"} ${
                 isActive ? "animate-pulse" : ""
               }`}
             />
@@ -361,8 +375,8 @@ export default function JobDetailPage() {
               disabled={publishLoading}
               className={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors disabled:opacity-50 ${
                 job.is_public
-                  ? "border-violet-400/60 bg-violet-500/20 text-violet-200 hover:bg-violet-500/30"
-                  : "border-white/10 bg-black/20 text-zinc-400 hover:text-zinc-200"
+                  ? "border-violet-400/60 bg-violet-500/20 text-violet-800 hover:bg-violet-500/30 dark:text-violet-200"
+                  : "border-stone-200 bg-stone-100 text-stone-600 hover:text-stone-900 dark:border-white/10 dark:bg-black/20 dark:text-zinc-400 dark:hover:text-zinc-200"
               }`}
               title={
                 job.is_public
@@ -374,12 +388,12 @@ export default function JobDetailPage() {
             </button>
           )}
         </div>
-        <p className="mt-2 text-sm text-zinc-500">
+        <p className="mt-2 text-sm text-stone-500">
           Job ID: {jobId.slice(0, 8)}… | Created:{" "}
           {new Date(job.created_at).toLocaleString()}
         </p>
         {publishMsg && (
-          <p className={`mt-2 text-sm ${publishMsgKind === "error" ? "text-red-400" : "text-emerald-400"}`}>
+          <p className={`mt-2 text-sm ${publishMsgKind === "error" ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400"}`}>
             {publishMsg}
           </p>
         )}
@@ -387,16 +401,21 @@ export default function JobDetailPage() {
 
       {/* Progress for active jobs */}
       {isActive && (
-        <div className="mb-8 h-2 w-full overflow-hidden rounded-full bg-zinc-800">
-          <div
-            className="h-full animate-pulse rounded-full bg-gradient-to-r from-violet-600 via-violet-400 to-violet-500 transition-[width] duration-500"
-            style={{ width: `${progressPct}%` }}
-          />
+        <div className="mb-8">
+          <div className="h-2 w-full overflow-hidden rounded-full bg-stone-200 dark:bg-zinc-800">
+            <div
+              className="h-full animate-pulse rounded-full bg-gradient-to-r from-violet-600 via-violet-400 to-violet-500 transition-[width] duration-500"
+              style={{ width: `${progressPct}%` }}
+            />
+          </div>
+          <p className="mt-3 text-xs text-stone-500">
+            You may leave this page — generation continues on the server even while you&apos;re gone.
+          </p>
         </div>
       )}
 
       {/* 3D Viewer */}
-      <div className="mb-8 rounded-2xl border border-white/10 bg-zinc-900/40 p-6">
+      <div className="mb-8 rounded-2xl border border-stone-200/70 bg-white shadow-sm shadow-rose-900/[0.05] p-6 dark:border-white/10 dark:bg-zinc-900/40">
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
           <div className="w-full">
             <SectionHeading>Generated Model</SectionHeading>
@@ -423,43 +442,43 @@ export default function JobDetailPage() {
       </div>
 
       {/* Params */}
-      <div className="mb-8 rounded-2xl border border-white/10 bg-zinc-900/40 p-6">
+      <div className="mb-8 rounded-2xl border border-stone-200/70 bg-white shadow-sm shadow-rose-900/[0.05] p-6 dark:border-white/10 dark:bg-zinc-900/40">
         <SectionHeading>Generation Parameters</SectionHeading>
         <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm sm:grid-cols-4">
           {job.job_type && (
             <>
-              <dt className="text-zinc-500">Type</dt>
-              <dd className="text-zinc-300">{job.job_type}</dd>
+              <dt className="text-stone-500">Type</dt>
+              <dd className="text-stone-700 dark:text-zinc-300">{job.job_type}</dd>
             </>
           )}
           {typeof job.generation_params?.prompt === "string" && (
             <>
-              <dt className="text-zinc-500">Prompt</dt>
-              <dd className="text-zinc-300">
+              <dt className="text-stone-500">Prompt</dt>
+              <dd className="text-stone-700 dark:text-zinc-300">
                 {job.generation_params.prompt as string}
               </dd>
             </>
           )}
           {typeof job.generation_params?.face_count === "number" && (
             <>
-              <dt className="text-zinc-500">Face count</dt>
-              <dd className="text-zinc-300">
+              <dt className="text-stone-500">Face count</dt>
+              <dd className="text-stone-700 dark:text-zinc-300">
                 {(job.generation_params.face_count as number).toLocaleString()}
               </dd>
             </>
           )}
           {typeof job.generation_params?.generate_type === "string" && (
             <>
-              <dt className="text-zinc-500">Generate type</dt>
-              <dd className="text-zinc-300">
+              <dt className="text-stone-500">Generate type</dt>
+              <dd className="text-stone-700 dark:text-zinc-300">
                 {job.generation_params.generate_type as string}
               </dd>
             </>
           )}
           {typeof job.generation_params?.enable_pbr === "boolean" && (
             <>
-              <dt className="text-zinc-500">PBR</dt>
-              <dd className="text-zinc-300">
+              <dt className="text-stone-500">PBR</dt>
+              <dd className="text-stone-700 dark:text-zinc-300">
                 {job.generation_params.enable_pbr ? "Enabled" : "Disabled"}
               </dd>
             </>
@@ -468,7 +487,7 @@ export default function JobDetailPage() {
 
         {/* Error */}
         {job.error_message && (
-          <div className="mt-4 rounded-lg border border-red-500/30 bg-red-950/30 p-4 text-sm text-red-400">
+          <div className="mt-4 rounded-lg border border-red-500/30 bg-red-50 p-4 text-sm text-red-700 dark:bg-red-950/30 dark:text-red-400">
             {job.error_message}
           </div>
         )}
@@ -476,7 +495,7 @@ export default function JobDetailPage() {
 
       {/* Pipeline stages */}
       {stages.length > 0 && (
-        <div className="mb-8 rounded-2xl border border-white/10 bg-zinc-900/40 p-6">
+        <div className="mb-8 rounded-2xl border border-stone-200/70 bg-white shadow-sm shadow-rose-900/[0.05] p-6 dark:border-white/10 dark:bg-zinc-900/40">
           <SectionHeading>Pipeline</SectionHeading>
           <div className="flex flex-wrap gap-3">
             {stages.map((stage, idx) => (
@@ -484,10 +503,10 @@ export default function JobDetailPage() {
                 key={idx}
                 className={`flex items-center gap-1.5 rounded-full border px-4 py-2 text-xs transition-colors ${
                   stage.status === "completed"
-                    ? "border-emerald-500/30 bg-emerald-950/20 text-emerald-400"
+                    ? "border-emerald-500/30 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/20 dark:text-emerald-400"
                     : stage.status === "pending"
-                      ? "border-zinc-700 bg-zinc-900 text-zinc-500"
-                      : "border-violet-500/30 bg-violet-950/20 text-violet-400"
+                      ? "border-stone-300 bg-stone-100 text-stone-500 dark:border-zinc-700 dark:bg-zinc-900"
+                      : "border-violet-500/30 bg-violet-50 text-violet-700 dark:bg-violet-950/20 dark:text-violet-400"
                 }`}
               >
                 <span
@@ -495,7 +514,7 @@ export default function JobDetailPage() {
                     stage.status === "completed"
                       ? "bg-emerald-400"
                       : stage.status === "pending"
-                        ? "bg-zinc-600"
+                        ? "bg-stone-600"
                         : "bg-violet-400 animate-pulse"
                   }`}
                 />
@@ -508,13 +527,13 @@ export default function JobDetailPage() {
 
       {/* Post-process trigger / re-run with different parameters */}
       {job.status === "completed" && obj && !ppRunning && (
-        <div className="mb-8 rounded-2xl border border-white/10 bg-zinc-900/40 p-6">
+        <div className="mb-8 rounded-2xl border border-stone-200/70 bg-white shadow-sm shadow-rose-900/[0.05] p-6 dark:border-white/10 dark:bg-zinc-900/40">
           <SectionHeading>{ppDone ? "Regenerate NURBS" : "Post-Processing"}</SectionHeading>
           {ppFailed && (
-            <p className="mb-3 text-sm text-red-400">Post-processing failed. You can retry.</p>
+            <p className="mb-3 text-sm text-red-600 dark:text-red-400">Post-processing failed. You can retry.</p>
           )}
           {ppDone && (
-            <p className="mb-3 text-sm text-zinc-500">
+            <p className="mb-3 text-sm text-stone-500">
               Already converted to NURBS. Adjust the parameters below and
               re-run to regenerate from the same source mesh — this replaces
               the current NURBS output.
@@ -524,10 +543,10 @@ export default function JobDetailPage() {
             <p
               className={`mb-3 text-sm ${
                 ppMsgKind === "success"
-                  ? "text-emerald-400"
+                  ? "text-emerald-600 dark:text-emerald-400"
                   : ppMsgKind === "error"
-                    ? "text-red-400"
-                    : "text-violet-400"
+                    ? "text-red-600 dark:text-red-400"
+                    : "text-violet-600 dark:text-violet-400"
               }`}
             >
               {ppMsg}
@@ -536,7 +555,7 @@ export default function JobDetailPage() {
 
           <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
             <label className="flex flex-col gap-1">
-              <span className="flex items-center justify-between gap-2 text-xs text-zinc-400">
+              <span className="flex items-center justify-between gap-2 text-xs text-stone-600 dark:text-zinc-400">
                 <span>Alpha wrap coarseness</span>
                 <input
                   type="text"
@@ -550,7 +569,7 @@ export default function JobDetailPage() {
                     const v = Number(e.target.value) || 0.05;
                     setPpAlpha(Math.min(0.2, Math.max(0.01, v)));
                   }}
-                  className="w-20 rounded-md border border-white/15 bg-zinc-900 px-2 py-1 text-right text-zinc-50 focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-500/20"
+                  className="w-20 rounded-md border border-stone-300 bg-white px-2 py-1 text-right text-stone-900 dark:border-white/15 dark:bg-zinc-900 dark:text-zinc-50 focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-500/20"
                 />
               </span>
               <input
@@ -562,7 +581,7 @@ export default function JobDetailPage() {
                 onChange={(e) => setPpAlpha(Number(e.target.value))}
                 className="accent-violet-500"
               />
-              <span className="text-[11px] text-zinc-500">
+              <span className="text-[11px] text-stone-500">
                 How tightly the wrap hugs the mesh — lower preserves more
                 detail but is more likely to fail on complex meshes; higher
                 is coarser but more robust. 0.01–0.2 (default 0.05).
@@ -570,7 +589,7 @@ export default function JobDetailPage() {
             </label>
 
             <label className="flex flex-col gap-1">
-              <span className="flex items-center justify-between gap-2 text-xs text-zinc-400">
+              <span className="flex items-center justify-between gap-2 text-xs text-stone-600 dark:text-zinc-400">
                 <span>Offset</span>
                 <input
                   type="text"
@@ -584,7 +603,7 @@ export default function JobDetailPage() {
                     const v = Number(e.target.value) || 0.005;
                     setPpOffset(Math.min(0.02, Math.max(0.001, v)));
                   }}
-                  className="w-20 rounded-md border border-white/15 bg-zinc-900 px-2 py-1 text-right text-zinc-50 focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-500/20"
+                  className="w-20 rounded-md border border-stone-300 bg-white px-2 py-1 text-right text-stone-900 dark:border-white/15 dark:bg-zinc-900 dark:text-zinc-50 focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-500/20"
                 />
               </span>
               <input
@@ -596,7 +615,7 @@ export default function JobDetailPage() {
                 onChange={(e) => setPpOffset(Number(e.target.value))}
                 className="accent-violet-500"
               />
-              <span className="text-[11px] text-zinc-500">
+              <span className="text-[11px] text-stone-500">
                 Buffer distance added around the mesh during wrapping —
                 helps bridge small holes/gaps; larger values thicken thin
                 features. 0.001–0.02 (default 0.005).
@@ -629,9 +648,9 @@ export default function JobDetailPage() {
         </div>
       )}
       {ppRunning && (
-        <div className="mb-8 rounded-2xl border border-violet-500/30 bg-zinc-900/40 p-6">
+        <div className="mb-8 rounded-2xl border border-violet-500/30 bg-white p-6 dark:bg-zinc-900/40">
           <SectionHeading>Post-Processing</SectionHeading>
-          <p className="text-sm text-violet-400 flex items-center gap-2">
+          <p className="text-sm text-violet-700 dark:text-violet-400 flex items-center gap-2">
             <span className="h-3 w-3 animate-spin rounded-full border border-violet-500 border-t-transparent" />
             Processing mesh…
           </p>
@@ -640,7 +659,7 @@ export default function JobDetailPage() {
 
       {/* Artifacts */}
       {job.artifacts?.length > 0 && (
-        <div className="rounded-2xl border border-white/10 bg-zinc-900/40 p-6">
+        <div className="rounded-2xl border border-stone-200/70 bg-white shadow-sm shadow-rose-900/[0.05] p-6 dark:border-white/10 dark:bg-zinc-900/40">
           <SectionHeading>Downloads</SectionHeading>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {job.artifacts
@@ -651,17 +670,17 @@ export default function JobDetailPage() {
                   href={a.download_url || "#"}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className={`flex items-center justify-between rounded-xl border border-white/10 bg-zinc-900 p-4 transition-all ${
+                  className={`flex items-center justify-between rounded-xl border border-stone-200/70 bg-white shadow-sm shadow-rose-900/[0.05] p-4 transition-all dark:border-white/10 dark:bg-zinc-900 ${
                     a.download_url
-                      ? "hover:-translate-y-0.5 hover:border-violet-400/50 hover:bg-zinc-800 hover:shadow-lg hover:shadow-violet-950/40"
+                      ? "hover:-translate-y-0.5 hover:border-violet-400/50 hover:bg-stone-100 hover:shadow-lg hover:shadow-violet-950/10 dark:hover:bg-zinc-800 dark:hover:shadow-violet-950/40"
                       : "cursor-not-allowed opacity-50"
                   }`}
                 >
                   <div>
-                    <p className="text-sm font-medium text-zinc-200">
+                    <p className="text-sm font-medium text-stone-800 dark:text-zinc-200">
                       {a.label || a.artifact_type.toUpperCase()}
                     </p>
-                    <p className="text-xs text-zinc-500">
+                    <p className="text-xs text-stone-500">
                       {(a.file_size_bytes / 1024 / 1024).toFixed(1)} MB
                     </p>
                   </div>
@@ -674,33 +693,44 @@ export default function JobDetailPage() {
         </div>
       )}
 
+      <div className="mt-10 flex justify-end border-t border-stone-200 pt-6 dark:border-white/10">
+        <button
+          type="button"
+          onClick={handleDelete}
+          disabled={deleting}
+          className="text-xs font-medium text-stone-400 transition-colors hover:text-red-600 disabled:opacity-50 dark:text-zinc-600 dark:hover:text-red-400"
+        >
+          {deleting ? "Deleting…" : "Delete this model"}
+        </button>
+      </div>
+
       {showPublishModal && job && (
         <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-6 backdrop-blur-sm"
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-6 backdrop-blur-sm dark:bg-black/80"
           onClick={() => !publishLoading && setShowPublishModal(false)}
         >
           <div
-            className="w-full max-w-md rounded-2xl border border-white/10 bg-zinc-950 p-6"
+            className="w-full max-w-md rounded-2xl border border-stone-200/70 bg-white shadow-sm shadow-rose-900/[0.05] p-6 dark:border-white/10 dark:bg-zinc-950"
             onClick={(e) => e.stopPropagation()}
           >
-            <h2 className="mb-1 text-lg font-semibold text-zinc-50">
+            <h2 className="mb-1 text-lg font-semibold text-stone-900 dark:text-zinc-50">
               {job.is_public ? "Edit gallery listing" : "Publish to gallery"}
             </h2>
-            <p className="mb-5 text-sm text-zinc-500">
+            <p className="mb-5 text-sm text-stone-500">
               Visible to everyone on the Public Gallery tab — no sign-in required.
             </p>
 
-            <label className="mb-1 block text-xs font-medium text-zinc-400">Object name</label>
+            <label className="mb-1 block text-xs font-medium text-stone-600 dark:text-zinc-400">Object name</label>
             <input
               type="text"
               value={publicTitleInput}
               onChange={(e) => setPublicTitleInput(e.target.value)}
               placeholder={job.title || "Untitled"}
               maxLength={120}
-              className="mb-4 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-violet-400/50"
+              className="mb-4 w-full rounded-lg border border-stone-200 bg-stone-50 px-3 py-2 text-sm text-stone-900 outline-none focus:border-violet-400/50 dark:border-white/10 dark:bg-black/30 dark:text-zinc-100"
             />
 
-            <label className="mb-1 block text-xs font-medium text-zinc-400">Your name</label>
+            <label className="mb-1 block text-xs font-medium text-stone-600 dark:text-zinc-400">Your name</label>
             <input
               type="text"
               value={publisherNameInput}
@@ -708,20 +738,20 @@ export default function JobDetailPage() {
               disabled={isAnonymous}
               placeholder="Shown as the creator"
               maxLength={60}
-              className="mb-2 w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-violet-400/50 disabled:opacity-40"
+              className="mb-2 w-full rounded-lg border border-stone-200 bg-stone-50 px-3 py-2 text-sm text-stone-900 outline-none focus:border-violet-400/50 disabled:opacity-40 dark:border-white/10 dark:bg-black/30 dark:text-zinc-100"
             />
-            <label className="mb-5 flex items-center gap-2 text-sm text-zinc-400">
+            <label className="mb-5 flex items-center gap-2 text-sm text-stone-600 dark:text-zinc-400">
               <input
                 type="checkbox"
                 checked={isAnonymous}
                 onChange={(e) => setIsAnonymous(e.target.checked)}
-                className="h-3.5 w-3.5 rounded border-white/20 bg-black/30 accent-violet-500"
+                className="h-3.5 w-3.5 rounded border-stone-300 bg-stone-50 accent-violet-500 dark:border-white/20 dark:bg-black/30"
               />
               Publish anonymously
             </label>
 
             {publishMsg && publishMsgKind === "error" && (
-              <p className="mb-4 text-sm text-red-400">{publishMsg}</p>
+              <p className="mb-4 text-sm text-red-600 dark:text-red-400">{publishMsg}</p>
             )}
 
             <div className="flex items-center justify-between gap-3">
@@ -730,7 +760,7 @@ export default function JobDetailPage() {
                   type="button"
                   onClick={handleUnpublish}
                   disabled={publishLoading}
-                  className="rounded-full border border-red-500/30 bg-red-950/30 px-4 py-2 text-xs font-medium text-red-400 transition-colors hover:bg-red-950/50 disabled:opacity-50"
+                  className="rounded-full border border-red-500/30 bg-red-50 px-4 py-2 text-xs font-medium text-red-700 transition-colors hover:bg-red-100 disabled:opacity-50 dark:bg-red-950/30 dark:text-red-400 dark:hover:bg-red-950/50"
                 >
                   {publishLoading ? "…" : "Unpublish"}
                 </button>
@@ -742,7 +772,7 @@ export default function JobDetailPage() {
                   type="button"
                   onClick={() => setShowPublishModal(false)}
                   disabled={publishLoading}
-                  className="rounded-full border border-white/10 bg-black/20 px-4 py-2 text-xs font-medium text-zinc-300 transition-colors hover:text-white disabled:opacity-50"
+                  className="rounded-full border border-stone-200 bg-stone-100 px-4 py-2 text-xs font-medium text-stone-700 transition-colors hover:text-stone-900 disabled:opacity-50 dark:border-white/10 dark:bg-black/20 dark:text-zinc-300 dark:hover:text-white"
                 >
                   Cancel
                 </button>
@@ -750,7 +780,7 @@ export default function JobDetailPage() {
                   type="button"
                   onClick={handlePublishConfirm}
                   disabled={publishLoading}
-                  className="rounded-full bg-gradient-to-r from-violet-500 to-fuchsia-500 px-4 py-2 text-xs font-semibold text-white shadow-md shadow-violet-500/25 transition-all hover:shadow-lg hover:shadow-violet-500/40 disabled:opacity-50"
+                  className="rounded-full bg-gradient-to-r from-violet-600 to-rose-400 px-4 py-2 text-xs font-semibold text-white shadow-md shadow-violet-500/25 transition-all hover:shadow-lg hover:shadow-violet-500/40 disabled:opacity-50"
                 >
                   {publishLoading ? "…" : job.is_public ? "Save changes" : "Publish"}
                 </button>

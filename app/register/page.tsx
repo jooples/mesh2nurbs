@@ -35,42 +35,42 @@ export default function RegisterPage() {
   };
 
   return (
-    <section className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-6 py-16">
+    <section className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-6 py-10">
       <div className="text-center">
-        <h1 className="bg-gradient-to-br from-white to-violet-200 bg-clip-text text-2xl font-semibold text-transparent">
+        <h1 className="text-2xl font-semibold text-stone-900 dark:bg-gradient-to-br dark:from-white dark:to-violet-200 dark:bg-clip-text dark:text-transparent">
           Create an account
         </h1>
-        <p className="mt-2 text-sm text-zinc-400">
+        <p className="mt-2 text-sm text-stone-600 dark:text-zinc-400">
           Start generating 3D models with AI
         </p>
       </div>
 
       <form onSubmit={handleSubmit} className="mt-8 flex flex-col gap-4">
         <label className="flex flex-col gap-1">
-          <span className="text-xs text-zinc-400">Name (optional)</span>
+          <span className="text-xs text-stone-600 dark:text-zinc-400">Name (optional)</span>
           <input
             type="text"
             value={displayName}
             onChange={(e) => setDisplayName(e.target.value)}
             placeholder="Your name"
-            className="rounded-xl border border-white/15 bg-zinc-900 px-4 py-3 text-zinc-50 placeholder:text-zinc-500 focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-500/20"
+            className="rounded-xl border border-stone-300 bg-white px-4 py-3 text-stone-900 placeholder:text-stone-400 focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-500/20 dark:border-white/15 dark:bg-zinc-900 dark:text-zinc-50 dark:placeholder:text-zinc-500"
           />
         </label>
 
         <label className="flex flex-col gap-1">
-          <span className="text-xs text-zinc-400">Email</span>
+          <span className="text-xs text-stone-600 dark:text-zinc-400">Email</span>
           <input
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
             placeholder="you@example.com"
-            className="rounded-xl border border-white/15 bg-zinc-900 px-4 py-3 text-zinc-50 placeholder:text-zinc-500 focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-500/20"
+            className="rounded-xl border border-stone-300 bg-white px-4 py-3 text-stone-900 placeholder:text-stone-400 focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-500/20 dark:border-white/15 dark:bg-zinc-900 dark:text-zinc-50 dark:placeholder:text-zinc-500"
           />
         </label>
 
         <label className="flex flex-col gap-1">
-          <span className="text-xs text-zinc-400">Password</span>
+          <span className="text-xs text-stone-600 dark:text-zinc-400">Password</span>
           <input
             type="password"
             value={password}
@@ -78,12 +78,12 @@ export default function RegisterPage() {
             required
             minLength={8}
             placeholder="Min. 8 characters"
-            className="rounded-xl border border-white/15 bg-zinc-900 px-4 py-3 text-zinc-50 placeholder:text-zinc-500 focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-500/20"
+            className="rounded-xl border border-stone-300 bg-white px-4 py-3 text-stone-900 placeholder:text-stone-400 focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-500/20 dark:border-white/15 dark:bg-zinc-900 dark:text-zinc-50 dark:placeholder:text-zinc-500"
           />
         </label>
 
         {error && (
-          <p className="rounded-lg border border-red-500/30 bg-red-950/30 p-3 text-center text-sm text-red-400">
+          <p className="rounded-lg border border-red-500/30 bg-red-50 p-3 text-center text-sm text-red-700 dark:bg-red-950/30 dark:text-red-400">
             {error}
           </p>
         )}
@@ -91,15 +91,15 @@ export default function RegisterPage() {
         <button
           type="submit"
           disabled={isLoading}
-          className="mt-2 rounded-full bg-gradient-to-r from-violet-500 to-fuchsia-500 px-8 py-3 font-semibold text-white shadow-lg shadow-violet-500/25 transition-all hover:shadow-violet-500/40 disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
+          className="mt-2 rounded-full bg-gradient-to-r from-violet-600 to-rose-400 px-8 py-3 font-semibold text-white shadow-lg shadow-violet-500/25 transition-all hover:shadow-violet-500/40 disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
         >
           {isLoading ? "Creating account…" : "Create account"}
         </button>
       </form>
 
-      <p className="mt-6 text-center text-sm text-zinc-400">
+      <p className="mt-6 text-center text-sm text-stone-600 dark:text-zinc-400">
         Already have an account?{" "}
-        <Link href="/login" className="text-violet-400 hover:text-violet-300">
+        <Link href="/login" className="text-violet-600 hover:text-violet-700 dark:text-violet-400 dark:hover:text-violet-300">
           Sign in
         </Link>
       </p>

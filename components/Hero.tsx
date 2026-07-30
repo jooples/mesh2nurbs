@@ -2,7 +2,7 @@ import Link from "next/link";
 
 export default function Hero() {
   return (
-    <section className="relative flex min-h-[calc(100vh-65px)] flex-col items-center justify-center overflow-hidden px-6 text-center">
+    <section className="relative flex min-h-[60vh] flex-col items-center justify-center overflow-hidden px-6 py-10 text-center">
       {/* Neon horizon — violet core with a cyan counter-glow off to the side */}
       <div
         className="pointer-events-none absolute inset-0 -z-10"
@@ -12,30 +12,30 @@ export default function Hero() {
         }}
       />
 
-      <p className="mb-5 inline-flex items-center gap-2 rounded-full border border-violet-400/25 bg-violet-500/10 px-4 py-1.5 text-xs font-medium uppercase tracking-[0.18em] text-violet-300 backdrop-blur">
-        <span className="h-1.5 w-1.5 rounded-full bg-violet-400" />
+      <p className="mb-5 inline-flex items-center gap-2 rounded-full border border-violet-400/25 bg-violet-500/10 px-4 py-1.5 text-xs font-medium uppercase tracking-[0.18em] text-violet-700 backdrop-blur dark:text-violet-300">
+        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-violet-400" />
         Text to NURBS
       </p>
 
-      <h1 className="max-w-3xl bg-gradient-to-br from-white via-white to-violet-200 bg-clip-text text-4xl font-semibold tracking-tight text-transparent sm:text-6xl">
+      <h1 className="max-w-3xl text-4xl font-semibold tracking-tight text-stone-900 sm:text-6xl dark:bg-gradient-to-br dark:from-white dark:via-white dark:to-violet-200 dark:bg-clip-text dark:text-transparent">
         Describe it. Get a 3D model ready for CAD.
       </h1>
 
-      <p className="mt-6 max-w-xl text-lg text-zinc-400">
-        mesh2nurbs turns a text prompt into a clean NURBS surface model —
+      <p className="mt-6 max-w-xl text-lg text-stone-600 dark:text-zinc-400">
+        Geonesis turns a text prompt into a clean NURBS surface model —
         no modeling software required.
       </p>
 
       <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row">
         <Link
           href="/create"
-          className="rounded-full bg-gradient-to-r from-violet-500 to-fuchsia-500 px-8 py-4 text-base font-semibold text-white shadow-lg shadow-violet-500/30 transition-all hover:scale-105 hover:shadow-xl hover:shadow-violet-500/40"
+          className="rounded-full bg-gradient-to-r from-violet-600 to-rose-400 px-8 py-4 text-base font-semibold text-white shadow-lg shadow-violet-500/30 transition-all hover:scale-105 hover:shadow-xl hover:shadow-violet-500/40"
         >
           Generate your model
         </Link>
         <Link
           href="#why-nurbs"
-          className="rounded-full border border-white/15 px-8 py-4 text-base font-medium text-zinc-200 transition-colors hover:border-cyan-400/40 hover:bg-white/5 hover:text-white"
+          className="rounded-full border border-stone-300 px-8 py-4 text-base font-medium text-stone-700 transition-colors hover:border-cyan-500/50 hover:bg-stone-100 hover:text-stone-900 dark:border-white/15 dark:text-zinc-200 dark:hover:border-cyan-400/40 dark:hover:bg-white/5 dark:hover:text-white"
         >
           Why NURBS?
         </Link>

@@ -37,7 +37,6 @@ export default function CreatePage() {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [params, setParams] = useState<Params>(DEFAULT_PARAMS);
-  const [showAdvanced, setShowAdvanced] = useState(false);
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -113,16 +112,16 @@ export default function CreatePage() {
   };
 
   return (
-    <section className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-8 px-6 py-16">
+    <section className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-6 px-6 py-10">
       <div className="text-center">
-        <h1 className="bg-gradient-to-br from-white to-violet-200 bg-clip-text text-3xl font-semibold text-transparent sm:text-4xl">
+        <h1 className="text-3xl font-semibold text-stone-900 sm:text-4xl dark:bg-gradient-to-br dark:from-white dark:to-violet-200 dark:bg-clip-text dark:text-transparent">
           Generate a 3D model
         </h1>
-        <p className="mt-3 text-zinc-400">
+        <p className="mt-3 text-stone-600 dark:text-zinc-400">
           Describe what you want to create and we&apos;ll turn it into a 3D model.
         </p>
         {!isAuthenticated && (
-          <p className="mt-2 text-sm text-amber-400">
+          <p className="mt-2 text-sm text-amber-700 dark:text-amber-400">
             You&apos;ll need to log in before generating a model.
           </p>
         )}
@@ -136,8 +135,8 @@ export default function CreatePage() {
             onClick={() => setActiveTab(tab)}
             className={`rounded-full px-5 py-2 text-sm font-medium transition-colors ${
               activeTab === tab
-                ? "bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white shadow-md shadow-violet-500/20"
-                : "bg-zinc-800 text-zinc-400 hover:text-zinc-200"
+                ? "bg-gradient-to-r from-violet-600 to-rose-400 text-white shadow-md shadow-violet-500/20"
+                : "bg-stone-200 text-stone-600 hover:text-stone-900 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200"
             }`}
           >
             {tab === "text" ? "Text to 3D" : "Image to 3D"}
@@ -153,13 +152,13 @@ export default function CreatePage() {
             onChange={(e) => setPrompt(e.target.value)}
             placeholder="e.g. A tall fluted ceramic vase with a narrow neck"
             rows={4}
-            className="w-full resize-none rounded-xl border border-white/15 bg-zinc-900 px-4 py-3 text-zinc-50 placeholder:text-zinc-500 focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-500/20"
+            className="w-full resize-none rounded-xl border border-stone-300 bg-white dark:border-white/15 dark:bg-zinc-900 px-4 py-3 text-stone-900 dark:text-zinc-50 placeholder:text-stone-500 focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-500/20"
           />
         ) : (
           <div className="flex flex-col gap-3">
             <label
               htmlFor="image-upload"
-              className="flex cursor-pointer flex-col items-center gap-2 rounded-xl border-2 border-dashed border-white/15 bg-zinc-900 p-8 transition-colors hover:border-violet-400/50"
+              className="flex cursor-pointer flex-col items-center gap-2 rounded-xl border-2 border-dashed border-stone-300 bg-white dark:border-white/15 dark:bg-zinc-900 p-8 transition-colors hover:border-violet-400/50"
             >
               {imagePreview ? (
                 <>
@@ -169,18 +168,18 @@ export default function CreatePage() {
                     alt="Preview"
                     className="max-h-48 rounded-lg object-contain"
                   />
-                  <span className="text-sm text-zinc-400">
+                  <span className="text-sm text-stone-600 dark:text-zinc-400">
                     {imageFile?.name} ({(imageFile ? imageFile.size / 1024 : 0).toFixed(0)} KB)
                   </span>
-                  <span className="text-xs text-zinc-500">Click to change</span>
+                  <span className="text-xs text-stone-500">Click to change</span>
                 </>
               ) : (
                 <>
                   <span className="text-2xl">📁</span>
-                  <span className="text-sm text-zinc-400">
+                  <span className="text-sm text-stone-600 dark:text-zinc-400">
                     Drop an image or click to browse
                   </span>
-                  <span className="text-xs text-zinc-500">JPEG or PNG, max 16MB</span>
+                  <span className="text-xs text-stone-500">JPEG or PNG, max 16MB</span>
                 </>
               )}
               <input
@@ -196,14 +195,14 @@ export default function CreatePage() {
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
               placeholder="Optional: additional text prompt to guide generation"
-              className="w-full rounded-xl border border-white/15 bg-zinc-900 px-4 py-3 text-sm text-zinc-50 placeholder:text-zinc-500 focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-500/20"
+              className="w-full rounded-xl border border-stone-300 bg-white dark:border-white/15 dark:bg-zinc-900 px-4 py-3 text-sm text-stone-900 dark:text-zinc-50 placeholder:text-stone-500 focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-500/20"
             />
           </div>
         )}
 
         {/* Face count — visible to everyone, not tucked behind Advanced */}
-        <label className="flex flex-col gap-1 rounded-xl border border-white/10 bg-zinc-900/50 p-4">
-          <span className="flex items-center justify-between gap-2 text-xs text-zinc-400">
+        <label className="flex flex-col gap-1 rounded-xl border border-stone-200 bg-stone-50 dark:border-white/10 dark:bg-zinc-900/50 p-4">
+          <span className="flex items-center justify-between gap-2 text-xs text-stone-600 dark:text-zinc-400">
             <span>Face count</span>
             <input
               type="text"
@@ -217,7 +216,7 @@ export default function CreatePage() {
                 const v = Number(e.target.value.replace(/[^0-9]/g, "")) || 3000;
                 setParams({ ...params, face_count: Math.min(30000, Math.max(3000, v)) });
               }}
-              className="w-24 rounded-md border border-white/15 bg-zinc-900 px-2 py-1 text-right text-zinc-50 focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-500/20"
+              className="w-24 rounded-md border border-stone-300 bg-white dark:border-white/15 dark:bg-zinc-900 px-2 py-1 text-right text-stone-900 dark:text-zinc-50 focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-500/20"
             />
           </span>
           <input
@@ -231,26 +230,17 @@ export default function CreatePage() {
             }
             className="accent-violet-500"
           />
-          <span className="text-[11px] text-zinc-500">
+          <span className="text-[11px] text-stone-500">
             Roughly how many triangles the final mesh has — more faces add
             detail but increase file size and load time. Type a value or
             drag the slider (3,000–30,000).
           </span>
         </label>
 
-        {/* Parameter panel */}
-        <button
-          type="button"
-          onClick={() => setShowAdvanced(!showAdvanced)}
-          className="self-start text-sm text-zinc-500 hover:text-zinc-300"
-        >
-          {showAdvanced ? "▾ Hide" : "▸ Advanced"} parameters
-        </button>
-
-        {showAdvanced && (
-          <div className="grid grid-cols-1 gap-4 rounded-xl border border-white/10 bg-zinc-900/50 p-4 sm:grid-cols-2">
+        {/* Parameter panel — always visible, no toggle */}
+        <div className="grid grid-cols-1 gap-4 rounded-xl border border-stone-200 bg-stone-50 dark:border-white/10 dark:bg-zinc-900/50 p-4 sm:grid-cols-2">
             <label className="flex flex-col gap-1">
-              <span className="text-xs text-zinc-400">Generate type</span>
+              <span className="text-xs text-stone-600 dark:text-zinc-400">Generate type</span>
               <select
                 value={params.generate_type}
                 onChange={(e) =>
@@ -259,7 +249,7 @@ export default function CreatePage() {
                     generate_type: e.target.value as Params["generate_type"],
                   })
                 }
-                className="rounded-lg border border-white/15 bg-zinc-900 px-3 py-2 text-sm text-zinc-50 focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-500/20"
+                className="rounded-lg border border-stone-300 bg-white dark:border-white/15 dark:bg-zinc-900 px-3 py-2 text-sm text-stone-900 dark:text-zinc-50 focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-500/20"
               >
                 {["Normal", "LowPoly", "Geometry", "Sketch"].map((t) => (
                   <option key={t} value={t}>
@@ -267,7 +257,7 @@ export default function CreatePage() {
                   </option>
                 ))}
               </select>
-              <span className="text-[11px] text-zinc-500">
+              <span className="text-[11px] text-stone-500">
                 Overall generation mode — changes mesh style and which
                 other options below apply (e.g. Polygon type only applies
                 to LowPoly).
@@ -283,9 +273,9 @@ export default function CreatePage() {
                 }
                 className="accent-violet-500"
               />
-              <span className="text-xs text-zinc-400">
+              <span className="text-xs text-stone-600 dark:text-zinc-400">
                 Enable PBR materials
-                <span className="ml-1 text-zinc-500">
+                <span className="ml-1 text-stone-500">
                   — generates physically-based texture maps (color,
                   roughness, metallic) for more realistic shading.
                 </span>
@@ -294,7 +284,7 @@ export default function CreatePage() {
 
             {params.generate_type === "LowPoly" && (
               <label className="flex flex-col gap-1">
-                <span className="text-xs text-zinc-400">Polygon type</span>
+                <span className="text-xs text-stone-600 dark:text-zinc-400">Polygon type</span>
                 <select
                   value={params.polygon_type}
                   onChange={(e) =>
@@ -303,12 +293,12 @@ export default function CreatePage() {
                       polygon_type: e.target.value as "triangle" | "quadrilateral",
                     })
                   }
-                  className="rounded-lg border border-white/15 bg-zinc-900 px-3 py-2 text-sm text-zinc-50 focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-500/20"
+                  className="rounded-lg border border-stone-300 bg-white dark:border-white/15 dark:bg-zinc-900 px-3 py-2 text-sm text-stone-900 dark:text-zinc-50 focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-500/20"
                 >
                   <option value="triangle">Triangle</option>
                   <option value="quadrilateral">Quadrilateral</option>
                 </select>
-                <span className="text-[11px] text-zinc-500">
+                <span className="text-[11px] text-stone-500">
                   Face shape used for the low-poly mesh — triangles suit
                   most viewers and engines, quads suit box-modeling and
                   subdivision workflows.
@@ -326,12 +316,12 @@ export default function CreatePage() {
                   }
                   className="accent-violet-500"
                 />
-                <span className="text-xs text-zinc-400">
+                <span className="text-xs text-stone-600 dark:text-zinc-400">
                   Automatically run post-processing (NURBS conversion) when generation finishes
                 </span>
               </label>
 
-              <p className="text-xs text-zinc-500">
+              <p className="text-xs text-stone-500">
                 The two sliders below control that post-processing step (alpha
                 wrap), which converts the mesh into NURBS surfaces. If
                 auto-run is off, you can still trigger it manually later from
@@ -339,7 +329,7 @@ export default function CreatePage() {
               </p>
 
               <label className="flex flex-col gap-1">
-                <span className="flex items-center justify-between gap-2 text-xs text-zinc-400">
+                <span className="flex items-center justify-between gap-2 text-xs text-stone-600 dark:text-zinc-400">
                   <span>Alpha wrap coarseness</span>
                   <input
                     type="text"
@@ -353,7 +343,7 @@ export default function CreatePage() {
                       const v = Number(e.target.value) || 0.05;
                       setParams({ ...params, alpha: Math.min(0.2, Math.max(0.01, v)) });
                     }}
-                    className="w-20 rounded-md border border-white/15 bg-zinc-900 px-2 py-1 text-right text-zinc-50 focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-500/20"
+                    className="w-20 rounded-md border border-stone-300 bg-white dark:border-white/15 dark:bg-zinc-900 px-2 py-1 text-right text-stone-900 dark:text-zinc-50 focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-500/20"
                   />
                 </span>
                 <input
@@ -365,7 +355,7 @@ export default function CreatePage() {
                   onChange={(e) => setParams({ ...params, alpha: Number(e.target.value) })}
                   className="accent-violet-500"
                 />
-                <span className="text-[11px] text-zinc-500">
+                <span className="text-[11px] text-stone-500">
                   How tightly the wrap hugs the mesh — lower preserves more
                   detail but is more likely to fail on complex meshes; higher
                   is coarser but more robust. 0.01–0.2 (default 0.05).
@@ -373,7 +363,7 @@ export default function CreatePage() {
               </label>
 
               <label className="flex flex-col gap-1">
-                <span className="flex items-center justify-between gap-2 text-xs text-zinc-400">
+                <span className="flex items-center justify-between gap-2 text-xs text-stone-600 dark:text-zinc-400">
                   <span>Offset</span>
                   <input
                     type="text"
@@ -387,7 +377,7 @@ export default function CreatePage() {
                       const v = Number(e.target.value) || 0.005;
                       setParams({ ...params, offset: Math.min(0.02, Math.max(0.001, v)) });
                     }}
-                    className="w-20 rounded-md border border-white/15 bg-zinc-900 px-2 py-1 text-right text-zinc-50 focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-500/20"
+                    className="w-20 rounded-md border border-stone-300 bg-white dark:border-white/15 dark:bg-zinc-900 px-2 py-1 text-right text-stone-900 dark:text-zinc-50 focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-500/20"
                   />
                 </span>
                 <input
@@ -399,7 +389,7 @@ export default function CreatePage() {
                   onChange={(e) => setParams({ ...params, offset: Number(e.target.value) })}
                   className="accent-violet-500"
                 />
-                <span className="text-[11px] text-zinc-500">
+                <span className="text-[11px] text-stone-500">
                   Buffer distance added around the mesh during wrapping —
                   helps bridge small holes/gaps; larger values thicken thin
                   features. 0.001–0.02 (default 0.005).
@@ -407,7 +397,6 @@ export default function CreatePage() {
               </label>
             </div>
           </div>
-        )}
 
         <TimeEstimate
           jobType={activeTab === "text" ? "text-to-3d" : "image-to-3d"}
@@ -424,14 +413,14 @@ export default function CreatePage() {
             (activeTab === "text" && !prompt.trim()) ||
             (activeTab === "image" && !imageFile)
           }
-          className="self-center rounded-full bg-gradient-to-r from-violet-500 to-fuchsia-500 px-8 py-3 font-semibold text-white shadow-lg shadow-violet-500/25 transition-all hover:shadow-violet-500/40 disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
+          className="self-center rounded-full bg-gradient-to-r from-violet-600 to-rose-400 px-8 py-3 font-semibold text-white shadow-lg shadow-violet-500/25 transition-all hover:shadow-violet-500/40 disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
         >
           {isLoading ? "Submitting…" : "Generate"}
         </button>
       </form>
 
       {error && (
-        <p className="rounded-lg border border-red-500/30 bg-red-950/30 p-3 text-center text-sm text-red-400">
+        <p className="rounded-lg border border-red-500/30 bg-red-50 p-3 text-center text-sm text-red-700 dark:bg-red-950/30 dark:text-red-400">
           {error}
         </p>
       )}

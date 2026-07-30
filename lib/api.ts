@@ -111,6 +111,7 @@ export type User = {
   id: string;
   email: string;
   display_name: string | null;
+  avatar_url: string | null;
   is_admin: boolean;
   email_verified: boolean;
   is_active: boolean;
@@ -153,6 +154,13 @@ export const authApi = {
     } catch {
       return null;
     }
+  },
+
+  async updateMe(data: { display_name?: string; avatar_url?: string }): Promise<User> {
+    return apiFetch<User>("/auth/me", {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    });
   },
 
   isAuthenticated(): boolean {
@@ -198,6 +206,7 @@ export type Artifact = {
 export type JobDetail = JobResponse & {
   user_id: string;
   title: string | null;
+  album: string | null;
   error_message: string | null;
   current_stage: number;
   artifacts: Artifact[];
@@ -226,6 +235,7 @@ export type JobSummary = {
   job_type: string;
   status: string;
   title: string | null;
+  album: string | null;
   external_job_id: string | null;
   created_at: string;
   glb_url: string | null;
@@ -303,8 +313,15 @@ export const jobsApi = {
     return apiFetch<PaginatedResponse<JobSummary>>(`/jobs${qs ? `?${qs}` : ""}`);
   },
 
-  async cancelJob(jobId: string): Promise<void> {
+  async deleteJob(jobId: string): Promise<void> {
     return apiFetch<void>(`/jobs/${jobId}`, { method: "DELETE" });
+  },
+
+  async setAlbum(jobId: string, album: string | null): Promise<JobSummary> {
+    return apiFetch<JobSummary>(`/jobs/${jobId}/album`, {
+      method: "PATCH",
+      body: JSON.stringify({ album }),
+    });
   },
 
   // Rough duration estimate from historical data. Null *_estimated_seconds
@@ -399,6 +416,32 @@ export const creditsApi = {
   },
 };
 
+// ── Reports API ──
+
+export type IssueReport = {
+  id: string;
+  category: string;
+  title: string;
+  description: string;
+  page_url: string | null;
+  status: string;
+  created_at: string;
+};
+
+export const reportsApi = {
+  async create(data: {
+    category: string;
+    title: string;
+    description: string;
+    page_url?: string;
+  }): Promise<IssueReport> {
+    return apiFetch<IssueReport>("/reports", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+};
+
 // ── Admin API ──
 
 export type AdminUserItem = {
@@ -435,6 +478,18 @@ export type CreditTransactionItem = {
   amount: number;
   transaction_type: string;
   description: string | null;
+  created_at: string | null;
+};
+
+export type AdminReportItem = {
+  id: string;
+  category: string;
+  title: string;
+  description: string;
+  page_url: string | null;
+  status: string;
+  admin_note: string | null;
+  reporter_email: string;
   created_at: string | null;
 };
 
@@ -490,6 +545,31 @@ export const adminApi = {
     return apiFetch<PaginatedResponse<CreditTransactionItem>>(
       `/admin/users/${userId}/transactions${qs ? `?${qs}` : ""}`
     );
+  },
+
+  async listReports(params?: {
+    status?: string;
+    page?: number;
+    per_page?: number;
+  }): Promise<PaginatedResponse<AdminReportItem>> {
+    const sp = new URLSearchParams();
+    if (params?.status) sp.set("status", params.status);
+    if (params?.page) sp.set("page", String(params.page));
+    if (params?.per_page) sp.set("per_page", String(params.per_page));
+    const qs = sp.toString();
+    return apiFetch<PaginatedResponse<AdminReportItem>>(
+      `/admin/reports${qs ? `?${qs}` : ""}`
+    );
+  },
+
+  async updateReport(
+    reportId: string,
+    data: { status?: string; admin_note?: string }
+  ): Promise<AdminReportItem> {
+    return apiFetch<AdminReportItem>(`/admin/reports/${reportId}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    });
   },
 };
 
