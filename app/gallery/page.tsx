@@ -36,7 +36,7 @@ function writeCache(key: string, jobs: JobSummary[]) {
   }
 }
 
-type Tab = "recent" | "mine" | "public";
+type Tab = "mine" | "public";
 const UNSORTED = "__unsorted__";
 
 export default function GalleryPage() {
@@ -58,8 +58,9 @@ function GalleryPageInner() {
   const searchParams = useSearchParams();
   const [tab, setTab] = useState<Tab>(() => {
     const t = searchParams.get("tab");
-    return t === "public" || t === "mine" ? t : "recent";
+    return t === "public" ? "public" : "mine";
   });
+  const [showRecentPopover, setShowRecentPopover] = useState(false);
 
   const [recentJobs, setRecentJobs] = useState<JobSummary[]>([]);
   const [recentLoading, setRecentLoading] = useState(true);
@@ -233,17 +234,6 @@ function GalleryPageInner() {
       <div className="mb-10 flex justify-center gap-2">
         <button
           type="button"
-          onClick={() => setTab("recent")}
-          className={`rounded-full border px-4 py-1.5 text-sm font-medium transition-colors ${
-            tab === "recent"
-              ? "border-violet-400/60 bg-violet-500/20 text-violet-800 dark:text-violet-200"
-              : "border-stone-200 bg-stone-100 text-stone-600 hover:text-stone-900 dark:border-white/10 dark:bg-black/20 dark:text-zinc-400 dark:hover:text-zinc-200"
-          }`}
-        >
-          Recent
-        </button>
-        <button
-          type="button"
           onClick={() => setTab("mine")}
           className={`rounded-full border px-4 py-1.5 text-sm font-medium transition-colors ${
             tab === "mine"
@@ -281,6 +271,42 @@ function GalleryPageInner() {
           <option key={a} value={a} />
         ))}
       </datalist>
+
+      {tab === "mine" && isAuthenticated && (
+        <div className="mb-8 flex justify-center">
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setShowRecentPopover((v) => !v)}
+              className="rounded-full border border-stone-200 bg-stone-100 px-4 py-1.5 text-xs font-medium text-stone-600 transition-colors hover:text-stone-900 dark:border-white/10 dark:bg-black/20 dark:text-zinc-400 dark:hover:text-zinc-200"
+            >
+              Recent builds ▾
+            </button>
+            {showRecentPopover && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setShowRecentPopover(false)} />
+                <div className="absolute left-1/2 top-full z-50 mt-2 w-80 -translate-x-1/2 rounded-xl border border-stone-200 bg-white p-2 shadow-xl shadow-rose-900/[0.08] dark:border-white/10 dark:bg-zinc-900">
+                  <div className="max-h-96 overflow-y-auto">
+                    {recentLoading ? (
+                      <div className="flex justify-center py-6">
+                        <div className="h-5 w-5 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
+                      </div>
+                    ) : recentError ? (
+                      <p className="px-3 py-4 text-center text-xs text-red-600 dark:text-red-400">{recentError}</p>
+                    ) : recentJobs.length === 0 ? (
+                      <p className="px-3 py-4 text-center text-xs text-stone-500">No recent activity.</p>
+                    ) : (
+                      recentJobs.map((job) => (
+                        <RecentBuildRow key={job.id} job={job} onNavigate={() => setShowRecentPopover(false)} />
+                      ))
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {tab === "mine" && isAuthenticated && jobs.length > 0 && (albums.length > 0 || jobs.some((j) => !j.album)) && (
         <div className="mb-8 flex flex-wrap justify-center gap-2">
@@ -322,47 +348,7 @@ function GalleryPageInner() {
         </div>
       )}
 
-      {tab === "recent" ? (
-        recentLoading ? (
-          <div className="flex justify-center py-10">
-            <div className="h-8 w-8 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
-          </div>
-        ) : recentError ? (
-          <p className="text-center text-sm text-red-600 dark:text-red-400">{recentError}</p>
-        ) : !isAuthenticated ? (
-          <div className="text-center">
-            <p className="mb-4 text-stone-600 dark:text-zinc-400">Sign in to see your recent activity.</p>
-            <Link
-              href="/login"
-              className="rounded-full bg-gradient-to-r from-violet-600 to-rose-400 px-8 py-3 font-semibold text-white shadow-lg shadow-violet-500/25 transition-all hover:scale-105 hover:shadow-violet-500/40"
-            >
-              Sign in to get started
-            </Link>
-          </div>
-        ) : recentJobs.length === 0 ? (
-          <div className="py-10 text-center">
-            {debouncedSearch ? (
-              <p className="text-stone-600 dark:text-zinc-400">No models match &ldquo;{debouncedSearch}&rdquo;.</p>
-            ) : (
-              <>
-                <p className="text-stone-600 dark:text-zinc-400">No models yet.</p>
-                <Link
-                  href="/create"
-                  className="mt-4 inline-block rounded-full bg-gradient-to-r from-violet-600 to-rose-400 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-violet-500/25 transition-all hover:scale-105 hover:shadow-violet-500/40"
-                >
-                  Create your first model
-                </Link>
-              </>
-            )}
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
-            {recentJobs.map((job) => (
-              <RecentJobCard key={job.id} job={job} />
-            ))}
-          </div>
-        )
-      ) : tab === "mine" ? (
+      {tab === "mine" ? (
         isLoading ? (
           <div className="flex justify-center py-10">
             <div className="h-8 w-8 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
@@ -580,70 +566,31 @@ function PublicJobCard({ job }: { job: JobSummary }) {
   );
 }
 
-// Activity-feed card for the "Recent" tab — unlike GalleryJobCard (completed
-// models only), this covers every status, so it renders a flat 2D preview
-// image instead of a 3D viewer (many cards on screen at once, and a WebGL
-// canvas per card is unnecessary here) with a status placeholder while
-// processing or if generation failed.
-function RecentJobCard({ job }: { job: JobSummary }) {
+// Plain text row for the "Recent builds" popover — no preview/thumbnail
+// fetch, just enough to recognize a build and jump to it.
+function RecentBuildRow({ job, onNavigate }: { job: JobSummary; onNavigate: () => void }) {
   const title = job.title || job.job_type;
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (job.status !== "completed") return;
-    let cancelled = false;
-    jobsApi
-      .getJob(job.id)
-      .then((detail) => {
-        if (cancelled) return;
-        const preview = detail.artifacts?.find((a) => a.artifact_type === "preview_image");
-        setPreviewUrl(preview?.download_url ?? null);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [job.id, job.status]);
-
   return (
     <Link
       href={`/jobs/${job.id}`}
       draggable={false}
-      className="group rounded-xl border border-stone-200/70 bg-white p-3 shadow-sm shadow-rose-900/[0.05] transition-all duration-200 hover:-translate-y-0.5 hover:border-violet-400/30 hover:shadow-lg hover:shadow-violet-950/10 dark:border-white/5 dark:bg-zinc-900/60 dark:hover:shadow-violet-950/40"
+      onClick={onNavigate}
+      className="flex items-center justify-between gap-3 rounded-lg px-3 py-2 text-sm transition-colors hover:bg-stone-100 dark:hover:bg-white/5"
     >
-      {job.status === "failed" || job.status === "cancelled" ? (
-        <div className="mb-2 flex aspect-square items-center justify-center rounded-lg border border-red-500/10 bg-red-50 dark:bg-red-950/20">
-          <span className="text-xl" aria-hidden>⚠️</span>
-        </div>
-      ) : job.status !== "completed" ? (
-        <div className="mb-2 flex aspect-square items-center justify-center rounded-lg bg-gradient-to-br from-stone-200 to-stone-300 dark:from-zinc-800 dark:to-zinc-900">
-          <div className="h-5 w-5 animate-spin rounded-full border-2 border-violet-400 border-t-transparent" />
-        </div>
-      ) : previewUrl ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={previewUrl}
-          alt=""
-          className="mb-2 aspect-square w-full rounded-lg bg-stone-100 object-cover dark:bg-zinc-900"
-        />
-      ) : (
-        <div className="mb-2 flex aspect-square items-center justify-center rounded-lg bg-gradient-to-br from-stone-200 to-stone-300 text-stone-500 dark:from-zinc-800 dark:to-zinc-900 dark:text-zinc-600">
-          <span className="text-xl" aria-hidden>🧊</span>
-        </div>
-      )}
-      <p className="truncate text-xs text-stone-500 group-hover:text-stone-900 dark:text-zinc-400 dark:group-hover:text-stone-200">
-        {title}
-      </p>
-      <span
-        className={`mt-1 inline-block rounded-full px-2 py-0.5 text-[10px] ${
-          job.status === "completed"
-            ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
-            : job.status === "failed" || job.status === "cancelled"
-              ? "bg-red-500/10 text-red-700 dark:text-red-400"
-              : "bg-amber-500/10 text-amber-700 dark:text-amber-400"
-        }`}
-      >
-        {job.status}
+      <span className="truncate text-stone-700 dark:text-zinc-300">{title}</span>
+      <span className="flex shrink-0 items-center gap-2">
+        <span className="text-xs text-stone-400">{new Date(job.created_at).toLocaleDateString()}</span>
+        <span
+          className={`rounded-full px-2 py-0.5 text-[10px] ${
+            job.status === "completed"
+              ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+              : job.status === "failed" || job.status === "cancelled"
+                ? "bg-red-500/10 text-red-700 dark:text-red-400"
+                : "bg-amber-500/10 text-amber-700 dark:text-amber-400"
+          }`}
+        >
+          {job.status}
+        </span>
       </span>
     </Link>
   );

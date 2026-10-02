@@ -5,7 +5,6 @@ import { useEffect, useState } from "react";
 import Hero from "@/components/Hero";
 import GalleryPreview from "@/components/GalleryPreview";
 import WhyNurbs from "@/components/WhyNurbs";
-import InfoMarquee from "@/components/InfoMarquee";
 import { useAuth } from "@/lib/auth";
 import { useCredits } from "@/lib/credits";
 import { jobsApi } from "@/lib/api";
@@ -93,25 +92,13 @@ export default function Home() {
               </h1>
               <p className="mt-1 text-stone-500 dark:text-zinc-400">Generate 3D models from text or images.</p>
             </div>
-            <div className="flex items-center gap-4">
-              {credits !== null && (
-                <div className="rounded-xl border border-violet-400/20 bg-violet-500/5 px-5 py-3 text-center">
-                  <div className="text-2xl font-bold text-violet-700 dark:text-violet-300">{credits}</div>
-                  <div className="text-xs text-stone-500">credits</div>
-                </div>
-              )}
-              <Link
-                href="/create"
-                className="rounded-full bg-gradient-to-r from-violet-600 to-rose-400 px-6 py-3 font-semibold text-white shadow-lg shadow-violet-500/25 transition-all hover:scale-105 hover:shadow-violet-500/40"
-              >
-                New model
-              </Link>
-            </div>
+            <Link
+              href="/create"
+              className="rounded-full bg-gradient-to-r from-violet-600 to-rose-400 px-6 py-3 font-semibold text-white shadow-lg shadow-violet-500/25 transition-all hover:scale-105 hover:shadow-violet-500/40"
+            >
+              New model
+            </Link>
           </div>
-        </section>
-
-        <section className="border-b border-stone-200 bg-stone-100/60 dark:border-white/10 dark:bg-white/[0.02]">
-          <InfoMarquee />
         </section>
 
         <section className="mx-auto w-full max-w-6xl px-6 py-10">

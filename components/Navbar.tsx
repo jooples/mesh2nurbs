@@ -8,7 +8,6 @@ import { useCredits } from "@/lib/credits";
 const navLinks = [
   { href: "/about", label: "About" },
   { href: "/gallery", label: "Gallery" },
-  { href: "/models", label: "Models" },
   { href: "/nurbs", label: "NURBS Viewer" },
 ];
 
