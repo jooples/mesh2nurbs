@@ -1,17 +1,24 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import { useCredits } from "@/lib/credits";
 import { creditsApi } from "@/lib/api";
+import { RetryableRequest } from "@/lib/retryable-request";
+import { useRemoteData } from "@/lib/use-remote-data";
 
 const QUICK_AMOUNTS = [10, 50, 200, 1000];
 
 export default function BillingPage() {
   const router = useRouter();
-  const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
   const { balance, setBalance } = useCredits();
+  const requestAttempt = useRef(new RetryableRequest());
+  const submitLock = useRef(false);
+  const loadCapabilities = useCallback((signal: AbortSignal) => creditsApi.getCapabilities(signal), []);
+  const capabilities = useRemoteData(isAuthenticated && user ? user.id : null, loadCapabilities);
+  const canTopUp = capabilities.data?.self_service_topup_enabled === true;
   const [amount, setAmount] = useState(50);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -24,17 +31,20 @@ export default function BillingPage() {
   }, [authLoading, isAuthenticated, router]);
 
   const handleTopUp = async () => {
-    if (isSubmitting || amount <= 0) return;
+    if (submitLock.current || !canTopUp || !Number.isSafeInteger(amount) || amount <= 0) return;
+    submitLock.current = true;
     setIsSubmitting(true);
     setError(null);
     setJustAdded(null);
     try {
-      const result = await creditsApi.topUp(amount);
+      const result = await creditsApi.topUp(amount, requestAttempt.current.keyFor({ userId: user?.id, amount }));
+      requestAttempt.current.complete();
       setBalance(result.balance);
       setJustAdded(amount);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Top-up failed");
     } finally {
+      submitLock.current = false;
       setIsSubmitting(false);
     }
   };
@@ -47,25 +57,32 @@ export default function BillingPage() {
     <section className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-6 py-10">
       <div className="text-center">
         <h1 className="text-2xl font-semibold text-stone-900 dark:bg-gradient-to-br dark:from-white dark:to-violet-200 dark:bg-clip-text dark:text-transparent">
-          Add credits
+          Credits
         </h1>
         <p className="mt-2 text-sm text-stone-600 dark:text-zinc-400">
-          {balance !== null ? `Current balance: ${balance} credits` : "Loading balance…"}
+          {balance !== null ? `Available balance: ${balance} credits` : "Loading balance…"}
         </p>
       </div>
 
-      <div className="mt-6 rounded-xl border border-amber-400/20 bg-amber-500/5 p-4 text-center text-xs text-amber-700 dark:text-amber-300">
-        Testing mode — top-ups here are free and instant, no payment is
-        collected. This will be replaced with a real paid checkout before
-        launch.
-      </div>
+      {capabilities.loading && <p className="mt-6 text-center text-sm" role="status">Loading credit options…</p>}
+      {capabilities.error && <p className="mt-6 text-center text-sm text-red-600" role="alert">Credit options could not be loaded. Refresh the page to try again.</p>}
+      {capabilities.data && <div className="mt-6 rounded-xl border border-stone-200 p-4 text-sm text-stone-600 dark:border-white/15 dark:text-zinc-400">
+        <p>Mesh generation: {capabilities.data.generation_cost} credits</p>
+        <p className="mt-1">NURBS conversion: {capabilities.data.post_process_cost} credits</p>
+        <p className="mt-3 text-xs">Credits reserved for running jobs are not included in your available balance.</p>
+      </div>}
+      {capabilities.data && !canTopUp && <p className="mt-6 text-center text-sm text-stone-600 dark:text-zinc-400">To request more credits, contact your project administrator.</p>}
+      {canTopUp && <div className="mt-6 rounded-xl border border-amber-400/20 bg-amber-500/5 p-4 text-center text-xs text-amber-700 dark:text-amber-300">
+        Local testing only — these credits are free. No payment is collected.
+      </div>}
 
-      <div className="mt-8 flex flex-col gap-4">
+      {canTopUp && <div className="mt-8 flex flex-col gap-4">
         <div className="grid grid-cols-4 gap-2">
           {QUICK_AMOUNTS.map((n) => (
             <button
               key={n}
               type="button"
+              disabled={isSubmitting}
               onClick={() => setAmount(n)}
               className={`rounded-xl border px-3 py-2 text-sm transition-colors ${
                 amount === n
@@ -83,6 +100,8 @@ export default function BillingPage() {
           <input
             type="number"
             min={1}
+            step={1}
+            disabled={isSubmitting}
             value={amount}
             onChange={(e) => setAmount(Math.max(0, Number(e.target.value)))}
             className="rounded-xl border border-stone-300 bg-white px-4 py-3 text-stone-900 placeholder:text-stone-400 focus:border-violet-400 focus:outline-none focus:ring-2 focus:ring-violet-500/20 dark:border-white/15 dark:bg-zinc-900 dark:text-zinc-50 dark:placeholder:text-zinc-500"
@@ -104,12 +123,12 @@ export default function BillingPage() {
         <button
           type="button"
           onClick={handleTopUp}
-          disabled={isSubmitting || amount <= 0}
+          disabled={isSubmitting || !Number.isSafeInteger(amount) || amount <= 0}
           className="mt-2 rounded-full bg-gradient-to-r from-violet-600 to-rose-400 px-8 py-3 font-semibold text-white shadow-lg shadow-violet-500/25 transition-all hover:shadow-violet-500/40 disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
         >
-          {isSubmitting ? "Adding…" : `Add ${amount} credits`}
+          {isSubmitting ? "Adding…" : `Add ${amount} test credits`}
         </button>
-      </div>
+      </div>}
     </section>
   );
 }

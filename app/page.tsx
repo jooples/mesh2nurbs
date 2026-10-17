@@ -38,7 +38,7 @@ const QUICK_ACTIONS = [
     href: "/billing",
     icon: "💳",
     title: "Credits",
-    desc: "Top up your balance",
+    desc: "View your available balance",
     badge: "bg-amber-500/10 dark:bg-amber-500/15",
     hover: "hover:border-amber-400/40 hover:shadow-amber-950/10 dark:hover:shadow-amber-950/40",
   },

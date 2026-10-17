@@ -6,6 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "test": "node --test tests/*.test.mjs",
+    "typecheck": "next typegen && tsc --noEmit --incremental false",
+    "lint:changed": "node scripts/check-lint.mjs",
     "lint": "eslint"
   },
   "dependencies": {

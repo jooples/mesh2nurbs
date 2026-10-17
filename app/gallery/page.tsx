@@ -1,40 +1,12 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import MeshViewer from "@/components/MeshViewer";
+import ModelPreview from "@/components/ModelPreview";
+import { useRemoteData } from "@/lib/use-remote-data";
 import { jobsApi, type JobSummary } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-
-// Stale-while-revalidate cache so repeat visits paint instantly instead of
-// re-running the list query (and its per-card thumbnail fetches) every time.
-// Keyed per-tab: the user's own id for "mine", a fixed key for "public".
-const CACHE_PREFIX = "gallery_cache:";
-const CACHE_MAX_AGE_MS = 5 * 60 * 1000;
-
-function readCache(key: string): JobSummary[] | null {
-  try {
-    const raw = sessionStorage.getItem(CACHE_PREFIX + key);
-    if (!raw) return null;
-    const { jobs, cachedAt } = JSON.parse(raw) as { jobs: JobSummary[]; cachedAt: number };
-    if (Date.now() - cachedAt > CACHE_MAX_AGE_MS) return null;
-    return jobs;
-  } catch {
-    return null;
-  }
-}
-
-function writeCache(key: string, jobs: JobSummary[]) {
-  try {
-    sessionStorage.setItem(
-      CACHE_PREFIX + key,
-      JSON.stringify({ jobs, cachedAt: Date.now() })
-    );
-  } catch {
-    // sessionStorage full/unavailable — caching is a perf nicety, safe to skip
-  }
-}
 
 type Tab = "mine" | "public";
 const UNSORTED = "__unsorted__";
@@ -54,170 +26,66 @@ export default function GalleryPage() {
 }
 
 function GalleryPageInner() {
-  const { isAuthenticated, user } = useAuth();
   const searchParams = useSearchParams();
-  const [tab, setTab] = useState<Tab>(() => {
-    const t = searchParams.get("tab");
-    return t === "public" ? "public" : "mine";
-  });
+  const initialTab = searchParams.get("tab") === "public" ? "public" : "mine";
+  return <GalleryContent key={initialTab} initialTab={initialTab} />;
+}
+
+function GalleryContent({ initialTab }: { initialTab: Tab }) {
+  const { isAuthenticated, user } = useAuth();
+  const [tab, setTab] = useState<Tab>(initialTab);
   const [showRecentPopover, setShowRecentPopover] = useState(false);
-
-  const [recentJobs, setRecentJobs] = useState<JobSummary[]>([]);
-  const [recentLoading, setRecentLoading] = useState(true);
-  const [recentError, setRecentError] = useState<string | null>(null);
-
-  const [jobs, setJobs] = useState<JobSummary[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const [publicJobs, setPublicJobs] = useState<JobSummary[]>([]);
-  const [publicLoading, setPublicLoading] = useState(true);
-  const [publicError, setPublicError] = useState<string | null>(null);
-
-  // Shared by both tabs — searches whichever one is currently active.
-  // Debounced so typing doesn't fire a request per keystroke; the
-  // client-side sessionStorage cache is only consulted/written for the
-  // unfiltered (empty search) view, so a search never shows a stale cached
-  // result set and never pollutes the cache with a filtered one.
   const [search, setSearch] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [activeAlbum, setActiveAlbum] = useState<string | null>(null); // null = all, "mine" tab only
+  const [query, setQuery] = useState({ search: "", album: null as string | null, page: 1 });
+  const [revision, setRevision] = useState(0);
+  const activeAlbum = query.album;
+  const debouncedSearch = query.search;
+  const page = query.page;
+  const userId = user?.id;
 
   useEffect(() => {
-    const t = setTimeout(() => setDebouncedSearch(search.trim()), 300);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => setQuery((previous) => previous.search === search.trim()
+      ? previous : { ...previous, search: search.trim(), page: 1 }), 300);
+    return () => clearTimeout(timer);
   }, [search]);
 
-  // Unlike "mine" (completed only, curated), this pulls every status —
-  // an activity feed for jobs still in flight, not just finished ones.
-  useEffect(() => {
-    if (!isAuthenticated || !user) {
-      setRecentLoading(false);
-      return;
-    }
+  const loadJobs = useCallback((signal: AbortSignal) => tab === "public"
+    ? jobsApi.listPublicJobs({ page, per_page: 12, search: debouncedSearch || undefined }, signal)
+    : jobsApi.listJobs({ page, per_page: 12, status: "completed", search: debouncedSearch || undefined,
+        album: activeAlbum && activeAlbum !== UNSORTED ? activeAlbum : undefined,
+        unfiled: activeAlbum === UNSORTED }, signal),
+  [tab, page, debouncedSearch, activeAlbum]);
+  const list = useRemoteData(tab === "public" || isAuthenticated && userId
+    ? JSON.stringify([tab, userId, query, revision]) : null, loadJobs);
+  const loading = list.loading || search.trim() !== debouncedSearch;
+  const jobs = tab === "mine" ? list.data?.items ?? [] : [];
+  const publicJobs = tab === "public" ? list.data?.items ?? [] : [];
+  const isLoading = loading;
+  const publicLoading = loading;
+  const error = list.error;
+  const publicError = list.error;
+  const displayedJobs = jobs;
+  const total = list.data?.total ?? 0;
+  const totalPages = Math.max(1, list.data?.total_pages ?? 1);
 
-    const cacheKey = `recent:${user.id}`;
-    const cached = !debouncedSearch ? readCache(cacheKey) : null;
-    if (cached) {
-      setRecentJobs(cached);
-      setRecentLoading(false);
-    } else {
-      setRecentLoading(true);
-    }
-    setRecentError(null);
+  const loadAlbums = useCallback((signal: AbortSignal) => jobsApi.listAlbums(signal), []);
+  const albumList = useRemoteData(isAuthenticated && userId ? "albums:" + userId + ":" + revision : null, loadAlbums);
+  const albums = albumList.data?.albums ?? [];
+  const hasUnsorted = albumList.data?.has_unsorted ?? false;
+  const loadRecent = useCallback((signal: AbortSignal) => jobsApi.listJobs({ per_page: 24 }, signal), []);
+  const recent = useRemoteData(showRecentPopover && isAuthenticated && userId ? "recent:" + userId + ":" + revision : null, loadRecent);
+  const recentJobs = recent.data?.items ?? [];
+  const recentLoading = recent.loading;
+  const recentError = recent.error;
 
-    async function load() {
-      try {
-        const data = await jobsApi.listJobs({
-          per_page: 24,
-          search: debouncedSearch || undefined,
-        });
-        setRecentJobs(data.items);
-        if (!debouncedSearch) writeCache(cacheKey, data.items);
-      } catch (err) {
-        console.error("Failed to load recent models:", err);
-        if (!cached) {
-          setRecentError(err instanceof Error ? err.message : "Failed to load");
-        }
-      } finally {
-        setRecentLoading(false);
-      }
-    }
-    load();
-  }, [isAuthenticated, user, debouncedSearch]);
-
-  useEffect(() => {
-    if (!isAuthenticated || !user) {
-      setIsLoading(false);
-      return;
-    }
-
-    const cached = !debouncedSearch ? readCache(user.id) : null;
-    if (cached) {
-      setJobs(cached);
-      setIsLoading(false);
-    } else {
-      setIsLoading(true);
-    }
-    setError(null);
-
-    async function load() {
-      try {
-        const data = await jobsApi.listJobs({
-          status: "completed",
-          per_page: 50,
-          search: debouncedSearch || undefined,
-        });
-        setJobs(data.items);
-        if (!debouncedSearch) writeCache(user!.id, data.items);
-      } catch (err) {
-        console.error("Failed to load gallery:", err);
-        if (!cached) {
-          setError(err instanceof Error ? err.message : "Failed to load");
-        }
-      } finally {
-        setIsLoading(false);
-      }
-    }
-    load();
-  }, [isAuthenticated, user, debouncedSearch]);
-
-  useEffect(() => {
-    const cached = !debouncedSearch ? readCache("public") : null;
-    if (cached) {
-      setPublicJobs(cached);
-      setPublicLoading(false);
-    } else {
-      setPublicLoading(true);
-    }
-    setPublicError(null);
-
-    async function load() {
-      try {
-        const data = await jobsApi.listPublicJobs({
-          per_page: 50,
-          search: debouncedSearch || undefined,
-        });
-        setPublicJobs(data.items);
-        if (!debouncedSearch) writeCache("public", data.items);
-      } catch (err) {
-        console.error("Failed to load public gallery:", err);
-        if (!cached) {
-          setPublicError(err instanceof Error ? err.message : "Failed to load");
-        }
-      } finally {
-        setPublicLoading(false);
-      }
-    }
-    load();
-  }, [debouncedSearch]);
-
-  const albums = useMemo(() => {
-    const set = new Set<string>();
-    for (const j of jobs) if (j.album) set.add(j.album);
-    return Array.from(set).sort();
-  }, [jobs]);
-
-  const displayedJobs = useMemo(() => {
-    if (!activeAlbum) return jobs;
-    if (activeAlbum === UNSORTED) return jobs.filter((j) => !j.album);
-    return jobs.filter((j) => j.album === activeAlbum);
-  }, [jobs, activeAlbum]);
-
-  const handleAlbumChange = (jobId: string, album: string | null) => {
-    setJobs((prev) => {
-      const next = prev.map((j) => (j.id === jobId ? { ...j, album } : j));
-      if (user) writeCache(user.id, next);
-      return next;
-    });
+  const switchTab = (next: Tab) => {
+    setTab(next); setSearch(""); setQuery({ search: "", album: null, page: 1 }); setShowRecentPopover(false);
   };
-
-  const handleDelete = (jobId: string) => {
-    setJobs((prev) => {
-      const next = prev.filter((j) => j.id !== jobId);
-      if (user) writeCache(user.id, next);
-      return next;
-    });
+  const setActiveAlbum = (album: string | null) => setQuery((previous) => ({ ...previous, album, page: 1 }));
+  const handleAlbumChange = () => { setQuery((previous) => ({ ...previous, page: 1 })); setRevision((v) => v + 1); };
+  const handleDelete = () => {
+    if (jobs.length === 1 && page > 1) setQuery((previous) => ({ ...previous, page: previous.page - 1 }));
+    setRevision((v) => v + 1);
   };
 
   return (
@@ -234,7 +102,7 @@ function GalleryPageInner() {
       <div className="mb-10 flex justify-center gap-2">
         <button
           type="button"
-          onClick={() => setTab("mine")}
+          onClick={() => switchTab("mine")}
           className={`rounded-full border px-4 py-1.5 text-sm font-medium transition-colors ${
             tab === "mine"
               ? "border-violet-400/60 bg-violet-500/20 text-violet-800 dark:text-violet-200"
@@ -245,7 +113,7 @@ function GalleryPageInner() {
         </button>
         <button
           type="button"
-          onClick={() => setTab("public")}
+          onClick={() => switchTab("public")}
           className={`rounded-full border px-4 py-1.5 text-sm font-medium transition-colors ${
             tab === "public"
               ? "border-violet-400/60 bg-violet-500/20 text-violet-800 dark:text-violet-200"
@@ -259,6 +127,7 @@ function GalleryPageInner() {
       <div className="mx-auto mb-10 max-w-sm">
         <input
           type="text"
+          aria-label="Search models"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder={tab === "public" ? "Search the public gallery…" : "Search your models…"}
@@ -277,6 +146,9 @@ function GalleryPageInner() {
           <div className="relative">
             <button
               type="button"
+              aria-expanded={showRecentPopover}
+              aria-controls="recent-builds"
+              onKeyDown={(e) => { if (e.key === "Escape") setShowRecentPopover(false); }}
               onClick={() => setShowRecentPopover((v) => !v)}
               className="rounded-full border border-stone-200 bg-stone-100 px-4 py-1.5 text-xs font-medium text-stone-600 transition-colors hover:text-stone-900 dark:border-white/10 dark:bg-black/20 dark:text-zinc-400 dark:hover:text-zinc-200"
             >
@@ -285,7 +157,7 @@ function GalleryPageInner() {
             {showRecentPopover && (
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setShowRecentPopover(false)} />
-                <div className="absolute left-1/2 top-full z-50 mt-2 w-80 -translate-x-1/2 rounded-xl border border-stone-200 bg-white p-2 shadow-xl shadow-rose-900/[0.08] dark:border-white/10 dark:bg-zinc-900">
+                <div id="recent-builds" onKeyDown={(e) => { if (e.key === "Escape") setShowRecentPopover(false); }} className="absolute left-1/2 top-full z-50 mt-2 w-80 -translate-x-1/2 rounded-xl border border-stone-200 bg-white p-2 shadow-xl shadow-rose-900/[0.08] dark:border-white/10 dark:bg-zinc-900">
                   <div className="max-h-96 overflow-y-auto">
                     {recentLoading ? (
                       <div className="flex justify-center py-6">
@@ -308,7 +180,7 @@ function GalleryPageInner() {
         </div>
       )}
 
-      {tab === "mine" && isAuthenticated && jobs.length > 0 && (albums.length > 0 || jobs.some((j) => !j.album)) && (
+      {tab === "mine" && isAuthenticated && (albums.length > 0 || hasUnsorted) && (
         <div className="mb-8 flex flex-wrap justify-center gap-2">
           <button
             onClick={() => setActiveAlbum(null)}
@@ -333,7 +205,7 @@ function GalleryPageInner() {
               {album}
             </button>
           ))}
-          {jobs.some((j) => !j.album) && (
+          {hasUnsorted && (
             <button
               onClick={() => setActiveAlbum(UNSORTED)}
               className={`rounded-full px-4 py-1.5 text-xs font-medium transition-colors ${
@@ -369,6 +241,8 @@ function GalleryPageInner() {
           <div className="py-10 text-center">
             {debouncedSearch ? (
               <p className="text-stone-600 dark:text-zinc-400">No models match &ldquo;{debouncedSearch}&rdquo;.</p>
+            ) : activeAlbum ? (
+              <p className="text-stone-600 dark:text-zinc-400">No models in this album.</p>
             ) : (
               <>
                 <p className="text-stone-600 dark:text-zinc-400">No models yet.</p>
@@ -381,8 +255,6 @@ function GalleryPageInner() {
               </>
             )}
           </div>
-        ) : displayedJobs.length === 0 ? (
-          <p className="py-10 text-center text-sm text-stone-500">No models in this album.</p>
         ) : (
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {displayedJobs.map((job) => (
@@ -416,6 +288,15 @@ function GalleryPageInner() {
           ))}
         </div>
       )}
+      {(tab === "public" || isAuthenticated) && !error && (total > 0 || page > 1) && (
+        <nav aria-label="Gallery pages" className="mt-8 flex items-center justify-center gap-4">
+          <button type="button" disabled={loading || page <= 1} onClick={() => setQuery((p) => ({ ...p, page: p.page - 1 }))}
+            className="rounded-full border px-4 py-2 text-sm disabled:opacity-40">Previous</button>
+          <p role="status" className="text-sm text-stone-500">Page {page} of {totalPages} · {total} {total === 1 ? "model" : "models"}</p>
+          <button type="button" disabled={loading || page >= totalPages} onClick={() => setQuery((p) => ({ ...p, page: p.page + 1 }))}
+            className="rounded-full border px-4 py-2 text-sm disabled:opacity-40">Next</button>
+        </nav>
+      )}
     </section>
   );
 }
@@ -434,17 +315,20 @@ function GalleryJobCard({
   const [albumInput, setAlbumInput] = useState(job.album || "");
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [albumError, setAlbumError] = useState<string | null>(null);
 
   const saveAlbum = async () => {
     const value = albumInput.trim() || null;
     setEditingAlbum(false);
     if (value === (job.album || null)) return;
     setSaving(true);
+    setAlbumError(null);
     try {
       await jobsApi.setAlbum(job.id, value);
       onAlbumChange(job.id, value);
     } catch {
       setAlbumInput(job.album || "");
+      setAlbumError("Album could not be saved. Please try again.");
     } finally {
       setSaving(false);
     }
@@ -466,32 +350,26 @@ function GalleryJobCard({
 
   return (
     <div className={`group flex flex-col gap-3 ${deleting ? "pointer-events-none opacity-40" : ""}`}>
-      {/* draggable={false}: next/link renders an <a>, which is natively
-          draggable — without this, a rotate-drag starting anywhere on the
-          card gets hijacked into the browser's native link-drag instead of
-          reaching the canvas's OrbitControls underneath. */}
-      <Link href={`/jobs/${job.id}`} draggable={false}>
-        <div className="relative overflow-hidden rounded-2xl ring-1 ring-stone-200 transition-all duration-200 group-hover:shadow-lg group-hover:shadow-violet-950/10 group-hover:ring-violet-400/30 dark:ring-white/5 dark:group-hover:shadow-violet-950/40">
+      <div className="relative overflow-hidden rounded-2xl ring-1 ring-stone-200 transition-all duration-200 group-hover:shadow-lg group-hover:shadow-violet-950/10 group-hover:ring-violet-400/30 dark:ring-white/5 dark:group-hover:shadow-violet-950/40">
+        <Link href={`/jobs/${job.id}`} draggable={false}>
           {job.is_public && (
             <span className="pointer-events-none absolute bottom-2 left-2 z-10 rounded-full bg-violet-500/90 px-2 py-0.5 text-[10px] font-medium text-white shadow">
               Published
             </span>
           )}
-          <button
+          <ModelPreview src={job.preview_image_url} title={title} />
+        </Link>
+        <button
+            type="button"
             onClick={handleDelete}
-            onPointerDown={(e) => e.currentTarget.releasePointerCapture(e.pointerId)}
+            disabled={deleting}
             aria-label="Delete model"
             title="Delete model"
-            className="absolute bottom-2 right-2 z-10 flex h-7 w-7 items-center justify-center rounded-full bg-black/50 text-sm text-white opacity-0 backdrop-blur-sm transition-all hover:bg-red-600 group-hover:opacity-100"
+            className="absolute bottom-2 right-2 z-10 flex h-7 w-7 items-center justify-center rounded-full bg-black/50 text-sm text-white opacity-100 backdrop-blur-sm transition-all hover:bg-red-600 sm:opacity-0 sm:group-hover:opacity-100 focus-visible:opacity-100"
           >
             🗑
           </button>
-          <MeshViewer
-            modelUrl={job.glb_url ?? undefined}
-            previewUrl={job.preview_image_url ?? undefined}
-          />
-        </div>
-      </Link>
+      </div>
       <div>
         <Link href={`/jobs/${job.id}`}>
           <h3 className="truncate text-sm font-semibold text-stone-900 transition-colors group-hover:text-violet-600 dark:text-zinc-50 dark:group-hover:text-violet-300">
@@ -521,6 +399,7 @@ function GalleryJobCard({
           />
         ) : (
           <button
+            disabled={saving}
             onClick={(e) => {
               e.preventDefault();
               setEditingAlbum(true);
@@ -532,12 +411,13 @@ function GalleryJobCard({
             ) : job.album ? (
               <>📁 {job.album}</>
             ) : (
-              <span className="opacity-0 transition-opacity group-hover:opacity-100">
+              <span className="opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 group-focus-within:opacity-100">
                 + Add to album
               </span>
             )}
           </button>
         )}
+        {albumError && <p role="alert" className="mt-1 text-xs text-red-600">{albumError}</p>}
       </div>
     </div>
   );
@@ -549,10 +429,7 @@ function PublicJobCard({ job }: { job: JobSummary }) {
   return (
     <Link href={`/gallery/public/${job.id}`} draggable={false} className="group flex flex-col gap-3">
       <div className="overflow-hidden rounded-2xl ring-1 ring-stone-200 transition-all duration-200 group-hover:shadow-lg group-hover:shadow-violet-950/10 group-hover:ring-violet-400/30 dark:ring-white/5 dark:group-hover:shadow-violet-950/40">
-        <MeshViewer
-          modelUrl={job.glb_url ?? undefined}
-          previewUrl={job.preview_image_url ?? undefined}
-        />
+        <ModelPreview src={job.preview_image_url} title={title} />
       </div>
       <div>
         <h3 className="truncate text-sm font-semibold text-stone-900 transition-colors group-hover:text-violet-600 dark:text-zinc-50 dark:group-hover:text-violet-300">

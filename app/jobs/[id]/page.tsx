@@ -8,16 +8,9 @@ import TimeEstimate from "@/components/TimeEstimate";
 import { jobsApi, type JobDetail, type Artifact } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { useCredits } from "@/lib/credits";
+import { RetryableRequest } from "@/lib/retryable-request";
 
-const ACTIVE_STATUSES = ["pending", "submitted", "processing", "submitting", "downloading", "queued", "in_progress"];
-
-// A job is "active" (worth polling / showing progress for) if either the
-// overall job is mid-generation, or any pipeline stage — including
-// post-process, which doesn't change job.status — is actively running.
-function isJobActive(data: JobDetail): boolean {
-  if (ACTIVE_STATUSES.includes(data.status)) return true;
-  return (data.pipeline_definition ?? []).some((s) => s.status === "processing");
-}
+import { ACTIVE_STATUSES, isJobActive, isPostProcessPending } from "@/lib/job-status";
 
 function SectionHeading({ children }: { children: ReactNode }) {
   return (
@@ -38,20 +31,21 @@ export default function JobDetailPage() {
   const [job, setJob] = useState<JobDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  // Credits are deducted server-side once a job finishes processing (not at
-  // submission time), so we can't know the new balance until we notice the
-  // status flip here — track whether we were still "active" to refresh the
-  // shared balance exactly on that transition.
+  // Completion settles the reservation; failure releases it. Refresh the
+  // shared available balance when an active job reaches a terminal state.
   const wasActiveRef = useRef(true);
   // Bridges the brief window right after triggering post-process where the
   // stage is still "pending" (not yet picked up by the worker) — without
   // this, a poll landing in that gap would look inactive and the polling
   // loop would stop before ever seeing "processing" or the final result.
   const ppActiveRef = useRef(false);
-  // Detects the processing → completed/failed transition so we can surface
+  // Detects pending/processing → completed/failed so we can surface
   // a one-time "it's done" message even if the user isn't watching.
   const prevPpStatusRef = useRef<string | undefined>(undefined);
   const [ppLoading, setPpLoading] = useState(false);
+  const [ppRequested, setPpRequested] = useState(false);
+  const ppSubmitLock = useRef(false);
+  const ppRequest = useRef(new RetryableRequest());
   const [ppMsg, setPpMsg] = useState<string | null>(null);
   const [ppMsgKind, setPpMsgKind] = useState<"info" | "success" | "error">("info");
   const [ppAlpha, setPpAlpha] = useState(0.05);
@@ -86,13 +80,17 @@ export default function JobDetailPage() {
       wasActiveRef.current = active;
 
       const ppStatus = data.pipeline_definition?.find((s) => s.type === "post_process")?.status;
-      if (prevPpStatusRef.current === "processing" && ppStatus === "completed") {
+      // A fast run may finish between polls without us observing processing.
+      const wasPpActive = ppActiveRef.current
+        || prevPpStatusRef.current === "processing"
+        || (prevPpStatusRef.current === "pending" && (Boolean(data.pipeline_definition?.find((s) => s.type === "post_process")?.operation_id) || data.generation_params.auto_post_process !== false));
+      if (wasPpActive && ppStatus === "completed") {
         setPpMsgKind("success");
         setPpMsg("Post-processing finished — NURBS output updated below.");
-        // Credits are only deducted on a successful run (never on a failed
-        // attempt), so this is the one moment the balance actually changes.
+        // The worker has settled the reserved credits for this run.
         refreshCredits();
-      } else if (prevPpStatusRef.current === "processing" && ppStatus === "failed") {
+      } else if (wasPpActive && ppStatus === "failed") {
+        void refreshCredits();
         setPpMsgKind("error");
         setPpMsg(
           data.error_message
@@ -100,8 +98,9 @@ export default function JobDetailPage() {
             : "Post-processing failed — no credits were charged."
         );
       }
-      if (ppStatus === "completed" || ppStatus === "failed") {
+      if (ppStatus === "completed" || ppStatus === "failed" || ppStatus === "skipped") {
         ppActiveRef.current = false;
+        setPpRequested(false);
       }
       prevPpStatusRef.current = ppStatus;
 
@@ -187,20 +186,22 @@ export default function JobDetailPage() {
   const glb = job.artifacts?.find((a: Artifact) => a.artifact_type === "glb");
   const preview = job.artifacts?.find((a: Artifact) => a.artifact_type === "preview_image");
   const obj = job.artifacts?.find((a: Artifact) => a.artifact_type === "obj");
-  // Not produced by the backend yet — the mesh2nurbs pipeline currently emits raw
-  // .m patch files (artifact_type "nurbs_patches"), not this pre-tessellated JSON.
-  // Wired up so it auto-loads as soon as that conversion exists.
   const nurbsJson = job.artifacts?.find((a: Artifact) => a.artifact_type === "nurbs_json");
 
   const handlePostProcess = async () => {
-    if (ppLoading) return;
+    if (ppSubmitLock.current || ppActiveRef.current) return;
+    ppSubmitLock.current = true;
     setPpLoading(true); setPpMsg(null);
     try {
-      await jobsApi.postProcess(jobId, { alpha: ppAlpha, offset: ppOffset });
+      const overrides = { alpha: ppAlpha, offset: ppOffset };
+      await jobsApi.postProcess(jobId, overrides, ppRequest.current.keyFor({ jobId, ...overrides }));
+      ppRequest.current.complete();
+      void refreshCredits();
       // The main job is likely already "completed", so the mount-level poll
       // loop may have stopped by now — this flag + restart keeps it going
       // until we actually observe the new run finish.
       ppActiveRef.current = true;
+      setPpRequested(true);
       // Reset any stale trickle timer from a previous run so the progress
       // bar starts this run's animation from zero instead of resuming near
       // its old cap.
@@ -212,7 +213,7 @@ export default function JobDetailPage() {
       setPpMsgKind("error");
       setPpMsg(err instanceof Error ? err.message : "Failed");
     }
-    finally { setPpLoading(false); }
+    finally { ppSubmitLock.current = false; setPpLoading(false); }
   };
 
   const openPublishModal = () => {
@@ -306,7 +307,8 @@ export default function JobDetailPage() {
 
   const stages = job.pipeline_definition ?? [];
   const ppFailed = stages.some((s) => s.type === "post_process" && s.status === "failed");
-  const ppRunning = stages.some((s) => s.type === "post_process" && s.status === "processing");
+  const ppQueued = isPostProcessPending(job);
+  const ppRunning = ppRequested || ppQueued || stages.some((s) => s.type === "post_process" && s.status === "processing");
   const ppDone = stages.some((s) => s.type === "post_process" && s.status === "completed");
 
   // The post-process step doesn't touch job.status (it's a separate
@@ -652,7 +654,7 @@ export default function JobDetailPage() {
           <SectionHeading>Post-Processing</SectionHeading>
           <p className="text-sm text-violet-700 dark:text-violet-400 flex items-center gap-2">
             <span className="h-3 w-3 animate-spin rounded-full border border-violet-500 border-t-transparent" />
-            Processing mesh…
+            {ppQueued ? "Waiting for post-processing…" : "Processing mesh…"}
           </p>
         </div>
       )}

@@ -1,8 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useEffect, useState, useRef } from "react";
+import { useParams } from "next/navigation";
 import Link from "next/link";
+import { useAuth } from "@/lib/auth";
+import { useCredits } from "@/lib/credits";
+import { RetryableRequest } from "@/lib/retryable-request";
 import {
   adminApi,
   type AdminUserDetail,
@@ -13,7 +16,14 @@ import {
 export default function AdminUserDetailPage() {
   const params = useParams();
   const userId = params.id as string;
-  const router = useRouter();
+  return <AdminUserDetailContent key={userId} userId={userId} />;
+}
+
+function AdminUserDetailContent({ userId }: { userId: string }) {
+  const { user: currentUser } = useAuth();
+  const { refreshCredits } = useCredits();
+  const adjustmentRequest = useRef(new RetryableRequest());
+  const submitLock = useRef(false);
 
   const [user, setUser] = useState<AdminUserDetail | null>(null);
   const [transactions, setTransactions] =
@@ -29,22 +39,26 @@ export default function AdminUserDetailPage() {
   const [adjustError, setAdjustError] = useState<string | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
     Promise.all([
       adminApi.getUser(userId),
       adminApi.getUserTransactions(userId, { per_page: 20 }),
     ])
       .then(([u, t]) => {
+        if (cancelled) return;
         setUser(u);
         setTransactions(t);
       })
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
+      .catch((e) => { if (!cancelled) setError(e.message); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
   }, [userId]);
 
   const handleAdjust = async (e: React.FormEvent) => {
     e.preventDefault();
-    const num = parseInt(amount, 10);
-    if (isNaN(num) || num === 0) {
+    if (submitLock.current || user?.id !== userId) return;
+    const num = Number(amount);
+    if (!Number.isSafeInteger(num) || num === 0) {
       setAdjustError("Please enter a valid non-zero amount");
       return;
     }
@@ -53,27 +67,35 @@ export default function AdminUserDetailPage() {
       return;
     }
 
+    submitLock.current = true;
     setSubmitting(true);
     setAdjustError(null);
     setAdjustResult(null);
 
     try {
-      const result = await adminApi.adjustCredits(userId, num, reason);
+      const result = await adminApi.adjustCredits(userId, num, reason.trim(), adjustmentRequest.current.keyFor({ userId, amount: num, reason: reason.trim() }));
+      adjustmentRequest.current.complete();
       setAdjustResult(
         `Credits adjusted: ${result.previous_balance} → ${result.new_balance} (${result.adjustment > 0 ? "+" : ""}${result.adjustment})`
       );
       setAmount("");
       setReason("");
+      if (currentUser?.id === userId) await refreshCredits();
       // Refresh user data
-      const [u, t] = await Promise.all([
-        adminApi.getUser(userId),
-        adminApi.getUserTransactions(userId, { per_page: 20 }),
-      ]);
-      setUser(u);
-      setTransactions(t);
+      try {
+        const [u, t] = await Promise.all([
+          adminApi.getUser(userId),
+          adminApi.getUserTransactions(userId, { per_page: 20 }),
+        ]);
+        setUser(u);
+        setTransactions(t);
+      } catch {
+        setAdjustResult((message) => `${message} — Saved successfully. Refresh this page to see the updated balance and history.`);
+      }
     } catch (e: unknown) {
       setAdjustError(e instanceof Error ? e.message : "Failed to adjust credits");
     } finally {
+      submitLock.current = false;
       setSubmitting(false);
     }
   };

@@ -1,10 +1,13 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
+import { useCredits } from "@/lib/credits";
 import { jobsApi, ApiError } from "@/lib/api";
 import TimeEstimate from "@/components/TimeEstimate";
+import { validateImageUpload } from "@/lib/image-upload";
+import { RetryableRequest } from "@/lib/retryable-request";
 
 type TabType = "text" | "image";
 
@@ -31,6 +34,7 @@ const DEFAULT_PARAMS: Params = {
 export default function CreatePage() {
   const router = useRouter();
   const { isAuthenticated } = useAuth();
+  const { refreshCredits } = useCredits();
 
   const [activeTab, setActiveTab] = useState<TabType>("text");
   const [prompt, setPrompt] = useState("");
@@ -40,22 +44,55 @@ export default function CreatePage() {
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [isValidatingImage, setIsValidatingImage] = useState(false);
+  const imageInput = useRef<HTMLInputElement>(null);
+  const selectionVersion = useRef(0);
+  const imageIdentity = useRef<string | null>(null);
+  const submitLock = useRef(false);
+  const requestAttempt = useRef(new RetryableRequest());
 
-  const handleImageDrop = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.size > 16 * 1024 * 1024) {
-      setError("Image must be under 16MB");
+  useEffect(() => () => {
+    if (imagePreview) URL.revokeObjectURL(imagePreview);
+  }, [imagePreview]);
+  useEffect(() => () => { selectionVersion.current += 1; }, []);
+
+  const selectImage = async (files: FileList | null) => {
+    if (!files?.length) return;
+    const version = ++selectionVersion.current;
+    if (files.length !== 1) {
+      setIsValidatingImage(false);
+      setError("Choose one image at a time.");
       return;
     }
-    setImageFile(file);
-    setImagePreview(URL.createObjectURL(file));
+    setIsValidatingImage(true);
     setError(null);
-  }, []);
+    let preview: string | null = null;
+    try {
+      const file = files[0];
+      await validateImageUpload(file);
+      preview = URL.createObjectURL(file);
+      const image = new Image();
+      image.src = preview;
+      await image.decode();
+      if (version !== selectionVersion.current) return;
+      setImageFile(file);
+      setImagePreview(preview);
+      imageIdentity.current = crypto.randomUUID();
+      preview = null; // The preview effect owns this URL until replacement/unmount.
+    } catch (err) {
+      if (version === selectionVersion.current) {
+        setError(err instanceof Error && err.name !== "EncodingError" ? err.message : "This image could not be read. Choose another file.");
+      }
+    } finally {
+      if (preview) URL.revokeObjectURL(preview);
+      if (version === selectionVersion.current) setIsValidatingImage(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isLoading) return;
+    if (submitLock.current || isValidatingImage) return;
     if (activeTab === "text" && !prompt.trim()) return;
     if (activeTab === "image" && !imageFile) return;
     if (!isAuthenticated) {
@@ -63,11 +100,14 @@ export default function CreatePage() {
       return;
     }
 
+    submitLock.current = true;
     setIsLoading(true);
     setError(null);
+    let accepted = false;
 
     try {
       let job;
+      const requestKey = requestAttempt.current.keyFor({ tab: activeTab, prompt: prompt.trim(), params, image: activeTab === "image" ? imageIdentity.current : null });
 
       if (activeTab === "text") {
         job = await jobsApi.createTextTo3D({
@@ -79,7 +119,7 @@ export default function CreatePage() {
           alpha: params.alpha,
           offset: params.offset,
           auto_post_process: params.auto_post_process,
-        });
+        }, requestKey);
       } else {
         job = await jobsApi.createImageTo3D(imageFile!, {
           prompt: prompt.trim() || undefined,
@@ -90,10 +130,13 @@ export default function CreatePage() {
           alpha: params.alpha,
           offset: params.offset,
           auto_post_process: params.auto_post_process,
-        });
+        }, requestKey);
       }
 
       // Redirect to job detail page — status is polled there in real time
+      requestAttempt.current.complete();
+      accepted = true;
+      void refreshCredits();
       router.push(`/jobs/${job.id}`);
     } catch (err) {
       if (err instanceof ApiError) {
@@ -107,7 +150,10 @@ export default function CreatePage() {
         setError(err instanceof Error ? err.message : "Something went wrong");
       }
     } finally {
-      setIsLoading(false);
+      if (!accepted) {
+        submitLock.current = false;
+        setIsLoading(false);
+      }
     }
   };
 
@@ -158,7 +204,16 @@ export default function CreatePage() {
           <div className="flex flex-col gap-3">
             <label
               htmlFor="image-upload"
-              className="flex cursor-pointer flex-col items-center gap-2 rounded-xl border-2 border-dashed border-stone-300 bg-white dark:border-white/15 dark:bg-zinc-900 p-8 transition-colors hover:border-violet-400/50"
+              tabIndex={0}
+              role="button"
+              aria-label="Choose or replace an image"
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") { e.preventDefault(); imageInput.current?.click(); }
+              }}
+              onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; setIsDragging(true); }}
+              onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setIsDragging(false); }}
+              onDrop={(e) => { e.preventDefault(); setIsDragging(false); void selectImage(e.dataTransfer.files); }}
+              className={`flex cursor-pointer flex-col items-center gap-2 rounded-xl border-2 border-dashed bg-white dark:bg-zinc-900 p-8 transition-colors hover:border-violet-400/50 focus-visible:outline-2 focus-visible:outline-violet-500 ${isDragging ? "border-violet-500 bg-violet-50" : "border-stone-300 dark:border-white/15"}`}
             >
               {imagePreview ? (
                 <>
@@ -171,7 +226,7 @@ export default function CreatePage() {
                   <span className="text-sm text-stone-600 dark:text-zinc-400">
                     {imageFile?.name} ({(imageFile ? imageFile.size / 1024 : 0).toFixed(0)} KB)
                   </span>
-                  <span className="text-xs text-stone-500">Click to change</span>
+                  <span className="text-xs text-stone-500">Drop another image or click to replace</span>
                 </>
               ) : (
                 <>
@@ -179,17 +234,23 @@ export default function CreatePage() {
                   <span className="text-sm text-stone-600 dark:text-zinc-400">
                     Drop an image or click to browse
                   </span>
-                  <span className="text-xs text-stone-500">JPEG or PNG, max 16MB</span>
+                  <span className="text-xs text-stone-500">JPEG, PNG, or WebP, max 16 MB</span>
                 </>
               )}
               <input
                 id="image-upload"
+                ref={imageInput}
                 type="file"
                 accept="image/jpeg,image/png,image/webp"
-                onChange={handleImageDrop}
+                onChange={(e) => { void selectImage(e.target.files); e.target.value = ""; }}
                 className="hidden"
               />
             </label>
+            {isValidatingImage && <p role="status" className="text-sm text-stone-500">Checking image…</p>}
+            {imageFile && <button type="button" className="self-start text-sm text-stone-500 underline" onClick={() => {
+              selectionVersion.current += 1; imageIdentity.current = null;
+              setImageFile(null); setImagePreview(null); setIsValidatingImage(false); setError(null);
+            }}>Remove image</button>}
             <input
               type="text"
               value={prompt}
@@ -409,7 +470,7 @@ export default function CreatePage() {
         <button
           type="submit"
           disabled={
-            isLoading ||
+            isLoading || isValidatingImage ||
             (activeTab === "text" && !prompt.trim()) ||
             (activeTab === "image" && !imageFile)
           }
