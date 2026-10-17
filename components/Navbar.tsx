@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import { useCredits } from "@/lib/credits";
+import Popover from "@/components/Popover";
 
 const navLinks = [
   { href: "/about", label: "About" },
@@ -20,7 +21,7 @@ export default function Navbar() {
     <header className="sticky top-0 z-50 border-b border-stone-200 bg-white/70 backdrop-blur-md dark:border-white/10 dark:bg-zinc-950/70">
       {/* thin neon rule along the bottom edge */}
       <div className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-violet-500/40 to-transparent" />
-      <nav className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
+      <nav aria-label="Main navigation" className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-6 py-4">
         <Link
           href="/"
           className="text-sm font-semibold tracking-wide text-stone-900 transition-opacity hover:opacity-80 dark:bg-gradient-to-r dark:from-zinc-50 dark:to-violet-300 dark:bg-clip-text dark:text-transparent"
@@ -28,7 +29,7 @@ export default function Navbar() {
           Geonesis
         </Link>
 
-        <div className="flex items-center gap-4 text-sm text-stone-500 dark:text-zinc-400">
+        <div className="flex flex-wrap items-center gap-4 text-sm text-stone-500 dark:text-zinc-400">
           {navLinks.map(({ href, label }) => {
             const isActive = pathname === href;
             return (
@@ -68,13 +69,7 @@ export default function Navbar() {
               >
                 Create
               </Link>
-              <div className="relative group">
-                <button className="flex items-center gap-1 rounded-full bg-stone-200 px-3 py-2 text-xs text-stone-700 transition-colors hover:bg-stone-300 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700">
-                  {user?.display_name || user?.email?.split("@")[0] || "Account"}
-                  <span className="ml-1 opacity-50">▾</span>
-                </button>
-                <div className="absolute right-0 top-full hidden w-40 pt-1 group-hover:block">
-                  <div className="rounded-lg border border-stone-200/70 bg-white py-1 shadow-lg shadow-rose-900/[0.06] dark:border-white/10 dark:bg-zinc-900">
+              <Popover key={`${pathname}:${user?.id}`} label={user?.display_name || user?.email?.split("@")[0] || "Account"}>
                     <Link
                       href="/create"
                       className="block px-4 py-2 text-xs text-stone-700 hover:bg-stone-100 dark:text-zinc-300 dark:hover:bg-white/5"
@@ -107,9 +102,7 @@ export default function Navbar() {
                     >
                       Sign out
                     </button>
-                  </div>
-                </div>
-              </div>
+              </Popover>
             </div>
           ) : (
             <div className="flex items-center gap-3">

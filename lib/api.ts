@@ -187,7 +187,7 @@ export type JobResponse = {
   status: string;
   job_type: string;
   generation_params: Record<string, unknown>;
-  pipeline_definition: Array<{ stage: number; type: string; status: string }>;
+  pipeline_definition: Array<{ stage: number; type: string; status: string; operation_id?: string; skip_reason?: string }>;
   created_at: string;
 };
 
@@ -261,16 +261,18 @@ export type PaginatedResponse<T> = {
 };
 
 export const jobsApi = {
-  async createTextTo3D(params: TextTo3DParams): Promise<JobResponse> {
+  async createTextTo3D(params: TextTo3DParams, requestKey?: string): Promise<JobResponse> {
     return apiFetch<JobResponse>("/jobs/text-to-3d", {
       method: "POST",
+      headers: requestKey ? { "Idempotency-Key": requestKey } : {},
       body: JSON.stringify({ params }),
     });
   },
 
   async createImageTo3D(
     imageFile: File,
-    params?: Partial<TextTo3DParams>
+    params?: Partial<TextTo3DParams>,
+    requestKey?: string
   ): Promise<JobResponse> {
     const formData = new FormData();
     formData.append("image", imageFile);
@@ -287,6 +289,7 @@ export const jobsApi = {
 
     return apiFetch<JobResponse>("/jobs/image-to-3d", {
       method: "POST",
+      headers: requestKey ? { "Idempotency-Key": requestKey } : {},
       body: formData,
     });
   },
@@ -301,16 +304,24 @@ export const jobsApi = {
     status?: string;
     job_type?: string;
     search?: string;
-  }): Promise<PaginatedResponse<JobSummary>> {
+    album?: string;
+    unfiled?: boolean;
+  }, signal?: AbortSignal): Promise<PaginatedResponse<JobSummary>> {
     const searchParams = new URLSearchParams();
     if (params?.page) searchParams.set("page", String(params.page));
     if (params?.per_page) searchParams.set("per_page", String(params.per_page));
     if (params?.status) searchParams.set("status", params.status);
     if (params?.job_type) searchParams.set("job_type", params.job_type);
     if (params?.search) searchParams.set("search", params.search);
+    if (params?.album) searchParams.set("album", params.album);
+    if (params?.unfiled) searchParams.set("unfiled", "true");
 
     const qs = searchParams.toString();
-    return apiFetch<PaginatedResponse<JobSummary>>(`/jobs${qs ? `?${qs}` : ""}`);
+    return apiFetch<PaginatedResponse<JobSummary>>(`/jobs${qs ? `?${qs}` : ""}`, { signal });
+  },
+
+  async listAlbums(signal?: AbortSignal): Promise<{ albums: string[]; has_unsorted: boolean }> {
+    return apiFetch("/jobs/albums", { signal });
   },
 
   async deleteJob(jobId: string): Promise<void> {
@@ -346,7 +357,7 @@ export const jobsApi = {
     page?: number;
     per_page?: number;
     search?: string;
-  }): Promise<PaginatedResponse<JobSummary>> {
+  }, signal?: AbortSignal): Promise<PaginatedResponse<JobSummary>> {
     const searchParams = new URLSearchParams();
     if (params?.page) searchParams.set("page", String(params.page));
     if (params?.per_page) searchParams.set("per_page", String(params.per_page));
@@ -355,7 +366,7 @@ export const jobsApi = {
     const qs = searchParams.toString();
     return apiFetch<PaginatedResponse<JobSummary>>(
       `/jobs/public${qs ? `?${qs}` : ""}`,
-      {},
+      { signal },
       false
     );
   },
@@ -390,10 +401,12 @@ export const jobsApi = {
   // same source mesh with different alpha_wrap parameters.
   async postProcess(
     jobId: string,
-    overrides?: { alpha?: number; offset?: number }
+    overrides?: { alpha?: number; offset?: number },
+    requestKey?: string
   ): Promise<{ job_id: string; status: string; alpha: number; offset: number; message: string }> {
     return apiFetch(`/jobs/${jobId}/post-process`, {
       method: "POST",
+      headers: requestKey ? { "Idempotency-Key": requestKey } : {},
       body: JSON.stringify(overrides ?? {}),
     });
   },
@@ -401,16 +414,26 @@ export const jobsApi = {
 
 // ── Credits API ──
 
+export type CreditCapabilities = {
+  self_service_topup_enabled: boolean;
+  generation_cost: number;
+  post_process_cost: number;
+  initial_credits: number;
+};
+
 export const creditsApi = {
-  async getBalance(): Promise<{ balance: number; lifetime_used: number }> {
+  async getCapabilities(signal?: AbortSignal): Promise<CreditCapabilities> {
+    return apiFetch("/credits/capabilities", { signal });
+  },
+  async getBalance(): Promise<{ balance: number; total_balance: number; reserved_balance: number; lifetime_used: number }> {
     return apiFetch("/credits/balance");
   },
 
-  // Placeholder self-service top-up (no payment) — see backend TODO on
-  // POST /credits/topup. Swap for a real checkout flow before production.
-  async topUp(amount: number): Promise<{ balance: number }> {
+  // The server only enables this for explicitly configured local testing.
+  async topUp(amount: number, requestKey?: string): Promise<{ balance: number }> {
     return apiFetch("/credits/topup", {
       method: "POST",
+      headers: requestKey ? { "Idempotency-Key": requestKey } : {},
       body: JSON.stringify({ amount }),
     });
   },
@@ -520,7 +543,8 @@ export const adminApi = {
   async adjustCredits(
     userId: string,
     amount: number,
-    reason: string
+    reason: string,
+    requestKey?: string
   ): Promise<{
     message: string;
     user_id: string;
@@ -530,6 +554,7 @@ export const adminApi = {
   }> {
     return apiFetch(`/admin/users/${userId}/credits`, {
       method: "POST",
+      headers: requestKey ? { "Idempotency-Key": requestKey } : {},
       body: JSON.stringify({ amount, reason }),
     });
   },

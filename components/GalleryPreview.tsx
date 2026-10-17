@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import MeshViewer from "@/components/MeshViewer";
+import ModelPreview from "@/components/ModelPreview";
 import { jobsApi, type JobSummary } from "@/lib/api";
 
 export default function GalleryPreview() {
@@ -60,10 +60,7 @@ export default function GalleryPreview() {
               className="group flex flex-col gap-3"
             >
               <div className="overflow-hidden rounded-2xl ring-1 ring-stone-200 transition-all duration-200 group-hover:shadow-lg group-hover:shadow-violet-950/10 group-hover:ring-violet-400/30 dark:ring-white/5 dark:group-hover:shadow-violet-950/40">
-                <MeshViewer
-                  modelUrl={model.glb_url ?? undefined}
-                  previewUrl={model.preview_image_url ?? undefined}
-                />
+                <ModelPreview src={model.preview_image_url} title={model.title || model.job_type} />
               </div>
               <div>
                 <h3 className="truncate text-sm font-semibold text-stone-900 transition-colors group-hover:text-violet-600 dark:text-zinc-50 dark:group-hover:text-violet-300">

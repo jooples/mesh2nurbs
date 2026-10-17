@@ -32,6 +32,7 @@ export async function POST(request: NextRequest) {
 
     // Forward JWT from incoming request
     const authHeader = request.headers.get("authorization") || "";
+    const requestKey = request.headers.get("idempotency-key");
 
     // Submit to backend — return immediately (no polling)
     const res = await fetch(`${BACKEND_URL}/jobs/text-to-3d`, {
@@ -39,6 +40,7 @@ export async function POST(request: NextRequest) {
       headers: {
         "Content-Type": "application/json",
         ...(authHeader ? { Authorization: authHeader } : {}),
+        ...(requestKey ? { "Idempotency-Key": requestKey } : {}),
       },
       body: JSON.stringify({
         params: {

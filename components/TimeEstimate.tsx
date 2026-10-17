@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { jobsApi, type EstimateResponse } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 
 function formatDuration(seconds: number): string {
   if (seconds < 90) return `~${Math.round(seconds)}s`;
@@ -25,8 +26,10 @@ type Props = {
 // only the value the user settles on for 300ms triggers a request.
 export default function TimeEstimate({ jobType, faceCount, alpha, offset, mode = "full", className }: Props) {
   const [estimate, setEstimate] = useState<EstimateResponse | null>(null);
+  const { isAuthenticated } = useAuth();
 
   useEffect(() => {
+    if (!isAuthenticated) return;
     let cancelled = false;
     const timer = setTimeout(() => {
       jobsApi
@@ -42,9 +45,9 @@ export default function TimeEstimate({ jobType, faceCount, alpha, offset, mode =
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [jobType, faceCount, alpha, offset]);
+  }, [jobType, faceCount, alpha, offset, isAuthenticated]);
 
-  if (!estimate) return null;
+  if (!isAuthenticated || !estimate) return null;
 
   const parts: string[] = [];
   if (mode === "full" && estimate.generation_estimated_seconds != null) {
